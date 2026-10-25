@@ -12,10 +12,11 @@ OMNI_KEY = os.environ.get("OMNI_API_KEY", "")
 OMNI_MODEL = os.environ.get("OMNI_TEXT_MODEL", "bima")
 
 ANATOMY_LOCK = (
-    "ANATOMY & PHYSICS: Anatomically correct human hands with exactly five fingers, "
-    "natural skin texture and realistic joints. Clean physical interaction with the product, "
-    "objects rest naturally on solid surfaces, no floating objects, no clipping, "
-    "no extra limbs, no hand warping."
+    "ANATOMY & PHYSICS: Anatomically correct human hands and body with exactly five fingers per hand, "
+    "natural skin texture, realistic joints, and proper proportions. Clean physical interaction with the product: "
+    "fingers wrap naturally around handles, straps, or devices without clipping into solid surfaces. "
+    "Objects rest naturally on solid surfaces with realistic contact shadows, gravity, and correct weight physics. "
+    "Zero floating objects, zero clipping, zero extra limbs, zero hand warping."
 )
 ANOMALY_LOCK = ANATOMY_LOCK
 
@@ -23,19 +24,22 @@ CONSISTENCY_LOCK = (
     "CONSISTENCY: The product itself is 100% identical in every frame to reference image #1 (golden catalog reference) "
     "- exact same form, color, texture, finish, typography, branding, and packaging. "
     "Consistent lighting, mood, and character appearance throughout. "
-    "EXCEPTION FOR DEMO APPLICATION: When product is applied (such as lipstick onto lips, skincare onto skin, or makeup), "
-    "the lips/skin MUST visibly and dramatically transform in real-time with rich pigment and realistic before-and-after results."
+    "EXCEPTION FOR DEMO APPLICATION: When product is applied, worn, or demonstrated (such as lipstick onto lips, "
+    "putting on clothing/watch, pouring water, or turning on a fan/device), the physical transformation and functional effect "
+    "MUST visibly and realistically occur in real-time."
 )
 
 APPLICATION_EFFECT_LOCK = (
-    "PRODUCT APPLICATION & COLOR TRANSFORMATION EFFECT: "
-    "Whenever a cosmetic, makeup, skincare, or lifestyle product is applied "
-    "(such as lipstick, lip tint, balm, foundation, blush, cream, or surface cleaner), "
-    "the physical application effect MUST be immediately visible and dramatic! "
-    "For lipstick and lip products: bare, natural lips visibly transform in real-time as the product glides across, "
-    "visibly coating and depositing rich, saturated, vibrant pigment onto the lips, "
-    "clearly transitioning from bare lips to fully covered, richly colored, defined lips in the product's exact shade. "
-    "Never show lipstick applied without the lips visibly changing to that color."
+    "PRODUCT APPLICATION & REAL-TIME DEMO EFFECT: "
+    "Whenever a product is applied, worn, or activated "
+    "(such as cosmetics on skin/lips, clothing/watches on body, cleaning/spray actions, pouring water, or operating appliances/fans/pumps): "
+    "the physical transformation and action effect MUST be immediately visible, functional, and realistic! "
+    "1. Cosmetics & lipstick: bare lips visibly transform in real-time as the product glides across, "
+    "visibly coating and depositing rich, saturated, vibrant pigment onto the lips in the product's exact shade. "
+    "2. Skincare & liquids: liquid absorbs with a dewy, hydrated sheen; water pours laminar into cups without spilling. "
+    "3. Apparel & watches: drape and fit naturally over human anatomy without skin clipping, seam distortion, or shape warping. "
+    "4. Powered devices: fans spin blades with natural airflow flutter, pumps dispense water smoothly, displays illuminate crisp readings. "
+    "Never show an inert or non-functional state during an application or usage demonstration."
 )
 
 MOTION_LOCK = (
@@ -88,60 +92,133 @@ def get_product_category(produk: str, deskripsi: str = "") -> str:
     """Categorize product to apply specialized visual and physics directives."""
     text = f"{produk or ''} {deskripsi or ''}".lower()
 
+    # 1. Wristwatch & Smartwatch (prioritized before general gadgets)
+    if any(k in text for k in (
+        "jam tangan", "arloji", "wristwatch", "smartwatch", "smart watch",
+        "chronograph", "jam pria", "jam wanita", "digital watch", "analog watch",
+        "jam casio", "g-shock", "gshock", "jam seiko", "jam alexandre"
+    )):
+        return "wristwatch"
+
+    # 2. Audio - TWS & Earphones (must precede general audio)
     if any(k in text for k in (
         "tws", "earphone", "earphones", "earbuds", "earbud", "headphone",
-        "headphones", "headset", "airpods", "in-ear", "handsfree"
+        "headphones", "headset", "airpods", "in-ear", "handsfree", "wireless earphone"
     )):
         return "audio_tws"
 
+    # 3. Audio - Speakers & Soundbars
+    if any(k in text for k in (
+        "speaker", "soundbar", "subwoofer", "bluetooth speaker", "portable speaker",
+        "salon aktif", "pengeras suara", "boombox", "smart speaker", "wireless speaker"
+    )):
+        return "speaker_audio"
+
+    # 4. Water Dispenser
+    if any(k in text for k in (
+        "dispenser", "dispenser air", "dispenser galon", "water dispenser",
+        "dispenser galon bawah", "dispenser meja", "hot cold dispenser"
+    )):
+        return "water_dispenser"
+
+    # 5. Pumps (electric bottle pump, tire inflator, air pump)
+    if any(k in text for k in (
+        "pompa", "pompa galon", "pompa ban", "pompa elektrik", "pompa listrik",
+        "pompa angin", "tire inflator", "air pump", "electric pump", "pompa portable",
+        "pompa sepeda", "pompa kasur"
+    )):
+        return "pump_device"
+
+    # 6. Fans & Cooling Devices
+    if any(k in text for k in (
+        "kipas", "kipas angin", "fan", "desk fan", "standing fan", "portable fan",
+        "mini fan", "neck fan", "kipas leher", "kipas meja", "kipas portable",
+        "air cooler", "kipas berdiri", "kipas gantung"
+    )):
+        return "fan_cooling"
+
+    # 7. Pants & Bottoms (celana, jeans, rok)
+    if any(k in text for k in (
+        "celana", "celana panjang", "celana pendek", "jeans", "denim", "trousers",
+        "pants", "chinos", "chino", "jogger", "joggers", "kulot", "culottes",
+        "legging", "leggings", "sweatpants", "cargo", "hotpants", "rok", "skirt"
+    )):
+        return "pants_bottoms"
+
+    # 8. Clothing & Apparel (pakaian, baju, kaos, kemeja, jaket, dress, dll)
+    if any(k in text for k in (
+        "pakaian", "baju", "kaos", "t-shirt", "tshirt", "kemeja", "jaket", "jacket",
+        "hoodie", "sweater", "cardigan", "knitwear", "blazer", "jas", "dress",
+        "gamis", "daster", "kebaya", "blouse", "blus", "tunik", "polo", "rompi",
+        "vest", "outer", "tanktop", "jersey", "piyama", "outfit"
+    )):
+        return "clothing_apparel"
+
+    # 9. Bags & Footwear (tas, ransel, sepatu, sneakers, sandal)
+    if any(k in text for k in (
+        "tas", "totebag", "tote bag", "ransel", "backpack", "dompet", "wallet",
+        "sling bag", "shoulder bag", "handbag", "waist bag", "tas selempang",
+        "sepatu", "sneakers", "sneaker", "sandal", "heels", "loafers", "boots",
+        "flat shoes", "slip on"
+    )):
+        return "bags_footwear"
+
+    # 10. Lipstick & Makeup
     if any(k in text for k in (
         "lipstik", "lipstick", "lip cream", "lipcream", "lip tint", "liptint",
         "lip balm", "lipbalm", "lip gloss", "lipgloss", "lip velvet", "eyeliner",
-        "mascara", "blush", "cushion", "bedak", "foundation", "eyeshadow"
+        "mascara", "maskara", "blush", "blush on", "cushion", "bedak", "foundation",
+        "concealer", "eyeshadow", "pensil alis", "eyebrow", "contour", "highlighter",
+        "compact powder", "loose powder"
     )):
         return "lipstick_makeup"
 
+    # 11. Skincare
     if any(k in text for k in (
-        "skincare", "serum", "moisturizer", "sunscreen", "toner", "facial wash",
-        "cleanser", "lotion", "essence", "ampoule", "body wash", "cream wajah"
+        "skincare", "skin care", "serum", "moisturizer", "pelembab", "sunscreen",
+        "sunblock", "toner", "facial wash", "face wash", "cuci muka", "cleanser",
+        "micellar", "lotion", "essence", "ampoule", "body wash", "body lotion",
+        "cream wajah", "day cream", "night cream", "brightening cream"
     )):
         return "skincare"
 
+    # 12. Facial Masks
     if any(k in text for k in (
-        "masker", "sheet mask", "clay mask", "peel off mask", "masker wajah",
-        "masker komedo", "sleeping mask"
+        "masker", "sheet mask", "sheetmask", "clay mask", "claymask", "peel off mask",
+        "masker wajah", "masker komedo", "sleeping mask", "face mask", "eye mask"
     )):
         return "mask_facial"
 
+    # 13. Perfume & Fragrance
     if any(k in text for k in (
         "parfum", "perfume", "fragrance", "cologne", "eau de", "body mist",
-        "minyak wangi", "scent"
+        "bodymist", "minyak wangi", "scent", "edp", "edt", "reed diffuser",
+        "diffuser", "pengharum"
     )):
         return "perfume_fragrance"
 
+    # 14. Smartphones & Gadgets
     if any(k in text for k in (
         "hp", "handphone", "smartphone", "iphone", "samsung", "android",
-        "laptop", "tablet", "ipad", "macbook", "smartwatch"
+        "xiaomi", "oppo", "vivo", "poco", "realme", "laptop", "macbook",
+        "tablet", "ipad", "notebook", "monitor", "keyboard", "mouse gaming"
     )):
         return "phone_gadget"
 
+    # 15. Kitchen & Cooking Appliances
     if any(k in text for k in (
-        "dapur", "pisau", "wajan", "panci", "blender", "air fryer", "mixer",
-        "juicer", "kompor", "rice cooker", "oven", "chopper", "tumbler",
-        "thermos", "spatula", "alat masak", "teko"
+        "dapur", "pisau", "wajan", "teflon", "panci", "blender", "air fryer",
+        "airfryer", "mixer", "juicer", "kompor", "rice cooker", "oven", "chopper",
+        "tumbler", "termos", "thermos", "spatula", "alat masak", "teko", "kettle",
+        "frying pan", "mangkok", "sendok garpu"
     )):
         return "kitchen_home"
 
-    if any(k in text for k in (
-        "baju", "kaos", "t-shirt", "kemeja", "jaket", "hoodie", "celana",
-        "rok", "dress", "tas", "totebag", "ransel", "dompet", "sepatu",
-        "sneakers", "sandal", "jam tangan", "hijab", "topi"
-    )):
-        return "fashion_apparel"
-
+    # 16. Food & Beverage
     if any(k in text for k in (
         "makanan", "minuman", "kopi", "coffee", "teh", "tea", "snack",
-        "biskuit", "cokelat", "roti", "mie", "sambal", "susu", "jus", "keripik"
+        "biskuit", "cokelat", "chocolate", "roti", "mie", "sambal", "susu",
+        "jus", "juice", "keripik", "cemilan", "cookies"
     )):
         return "food_beverage"
 
@@ -152,8 +229,65 @@ CATEGORY_DIRECTIVES = {
     "audio_tws": (
         "TWS & AUDIO GADGET DIRECTIVE: The product is a pair of wireless earbuds and their matching charging case. "
         "When shown in ears: each earbud fits naturally and securely inside the human ear concha with the stem pointing downward "
-        "along the jawline. When shown in case: earbuds rest precisely in magnetic charging slots with subtle pin contacts and LED light. "
-        "Zero floating earbuds, exactly 2 earbuds per set, no jewelry morphing."
+        "along the jawline. When shown in case: earbuds rest precisely in magnetic charging slots with subtle pin contacts and LED indicator light. "
+        "Zero floating earbuds, exactly 2 earbuds per pair, zero morphing into earrings or jewelry, natural human ear anatomy."
+    ),
+    "speaker_audio": (
+        "SPEAKER & AUDIO EQUIPMENT DIRECTIVE: Solid, rigid acoustic chassis (cylindrical, soundbar, or box) with authentic metal mesh "
+        "or woven fabric grille texture. The speaker body remains perfectly rigid without wobbling or warping. "
+        "Audio playback is depicted strictly through authentic visual physics: subtle, rhythmic, natural excursion vibration of the rubber-surrounded "
+        "passive bass radiator membrane. "
+        "STRICTLY PROHIBITED: Zero floating cartoon music notes, zero holographic soundwave rings, zero digital tearing. "
+        "Physical control buttons (power, volume, bluetooth), rubber feet, and brand logos remain razor-sharp and physically stable."
+    ),
+    "water_dispenser": (
+        "WATER DISPENSER DIRECTIVE: Sturdy, upright commercial dispenser standing firmly on the floor or countertop with realistic drip tray, "
+        "clear brand markings, and defined hot/cold dispensing taps or push levers. "
+        "Dispensing action: a drinking glass or mug is placed firmly on the drip tray directly beneath the spout. "
+        "A crystal-clear, laminar, smooth stream of clean water pours straight down from the nozzle into the glass, with realistic fluid dynamics, "
+        "subtle surface ripples, and water level rising smoothly. "
+        "Zero water leaks, zero water splashing outside the glass, zero water spraying upward, zero floating glasses."
+    ),
+    "pump_device": (
+        "ELECTRIC PUMP & INFLATOR DIRECTIVE: "
+        "1. For electric water bottle pump: fits snugly and tightly over standard 5-gallon water jug neck; rigid stainless steel outlet spout "
+        "angles downward ergonomically; one-touch top button illuminates subtle LED indicator, dispensing a smooth, steady, clean stream of water "
+        "directly into a glass held below. "
+        "2. For tire inflator / electric air pump: compact handheld device with heavy-duty reinforced braided air hose locked securely onto tire valve stem; "
+        "bright digital LED screen displays clear numerical pressure readings (PSI/Bar) without erratic flickering; steady mechanical operation with zero violent shaking or sparks."
+    ),
+    "fan_cooling": (
+        "ELECTRIC FAN & COOLING DIRECTIVE: Rigid circular protective safety cage with dense concentric/radial grille wire and centered motor hub. "
+        "Aerodynamic fan blades spin smoothly inside the protective cage at steady high speed creating a natural circular motion blur. "
+        "Smooth horizontal oscillation or adjustable tilt on a stable pedestal base. "
+        "Airflow is demonstrated PURELY through natural environmental cues (fluttering light fabric ribbons, moving curtain edge, gentle dancing hair strands), "
+        "NEVER artificial white smoke, wind streaks, or cartoon air gusts. "
+        "For portable neck fan: ergonomic curved silicone band resting comfortably around neck with micro-perforated air vents directing upward gentle breeze."
+    ),
+    "wristwatch": (
+        "WRISTWATCH & HOROLOGY DIRECTIVE: Worn naturally around the human wrist just above the wrist bone, with realistic strap tension "
+        "(leather grain, stainless steel links, or silicone) and crisp buckle/clasp. "
+        "Watch case: precision bezel, crown, and pushers with pristine metallic finish. "
+        "Watch dial: crystal-clear sapphire glass with subtle anti-reflective sheen; razor-sharp hour indices and numeral markings. "
+        "Analog watch hands move at a normal, realistic subtle speed (NEVER spin wildly like helicopter blades). "
+        "For smartwatch: crisp, high-resolution OLED screen displaying clean, minimal watch faces or fitness UI with razor-sharp typography, no gibberish text."
+    ),
+    "clothing_apparel": (
+        "CLOTHING & APPAREL DIRECTIVE: Natural textile drape, authentic fabric weave (cotton, linen, denim, knitwear), and realistic seam stitching. "
+        "Garments fit the human body contours naturally, moving with the wearer with authentic fabric folds, creases, and stretch. "
+        "Zero fabric clipping into skin or body; collars, buttons, zippers, drawstrings, and cuffs remain structurally solid and properly positioned. "
+        "Printed logos, graphic designs, embroidery, and fabric patterns remain 100% stable and locked across all movements without warping or melting."
+    ),
+    "pants_bottoms": (
+        "PANTS & TROUSERS DIRECTIVE: Clear anatomical fit for lower body apparel. "
+        "Waistband sits securely at natural waistline with authentic belt loops, pockets, and front fly/button closure. "
+        "Two distinct, separate pant legs that drape cleanly over legs down to hems, with natural creasing at knees and ankles during walking or posing. "
+        "Zero merging of legs, zero skin clipping through trousers. Denim wash/texture, seam stitching, and fabric patterns stay strictly consistent across all angles."
+    ),
+    "bags_footwear": (
+        "BAGS & FOOTWEAR DIRECTIVE: Authentic leather grain, canvas weave, and stitching details. "
+        "Bags hang or rest with realistic gravitational drape, natural strap tension over shoulders or in hand, and defined hardware (zippers, buckles, clasps). "
+        "Footwear (sneakers, shoes, sandals) rests flat and firmly on ground with realistic soles, treads, and authentic lace/strap geometry; worn naturally on feet with correct foot anatomy."
     ),
     "phone_gadget": (
         "SMARTPHONE & ELECTRONICS DIRECTIVE: Modern, ultra-sleek device chassis with realistic screen bezel and precision glass finish. "
@@ -188,11 +322,6 @@ CATEGORY_DIRECTIVES = {
         "and mouth cutouts, fitting smoothly and adhering naturally to facial contours without melting into skin. "
         "For clay masks: smooth uniform layer spread across cheeks and forehead avoiding eyes and lips. Realistic peeling or washing action."
     ),
-    "fashion_apparel": (
-        "FASHION & APPAREL DIRECTIVE: Natural textile drape, authentic fabric weave and stitching details. "
-        "Bags and accessories hang naturally with correct gravity and strap tension over shoulders or in hand. "
-        "Shoes rest flat on floor with realistic soles. Watches fit comfortably on wrist with sharp legible dial."
-    ),
     "food_beverage": (
         "FOOD & BEVERAGE DIRECTIVE: Highly appetizing commercial presentation. Fresh textures, natural golden crispiness, vibrant colors. "
         "Pouring liquids exhibit natural fluid dynamics, smooth stream, and surface tension into cups. Crisp commercial food styling."
@@ -206,13 +335,20 @@ CATEGORY_DIRECTIVES = {
 
 CATEGORY_CATALOG_HINTS = {
     "audio_tws": "Charging case cleanly presented with matching wireless earbuds displayed nearby on a minimal pedestal.",
+    "speaker_audio": "Premium bluetooth speaker standing on a clean wooden desk or studio pedestal with soft ambient rim lighting.",
+    "water_dispenser": "Modern sleek water dispenser standing upright in a bright, clean contemporary kitchen setting with a clear drinking glass.",
+    "pump_device": "Compact electric pump or tire inflator displayed cleanly on a studio surface next to neat accessories.",
+    "fan_cooling": "Modern electric fan standing on a clean table or pedestal in a bright airy room setting.",
+    "wristwatch": "Luxury wristwatch or smartwatch displayed on an elegant watch cushion or wrist stand with crystal-clear dial and crisp rim reflections.",
+    "clothing_apparel": "Apparel garment neatly styled on a minimalist torso mannequin or elegant flat lay with natural fabric folds.",
+    "pants_bottoms": "Trousers or jeans neatly displayed on a sleek minimalist hanger or studio flat lay showing authentic denim texture and stitching.",
+    "bags_footwear": "Bag or footwear presented on a clean studio display pedestal with authentic leather or textile texture.",
     "phone_gadget": "Sleek smartphone standing upright on sleek acrylic stand with screen displaying clean modern wallpaper.",
     "kitchen_home": "Clean kitchenware displayed on marble or wooden countertop with soft warm kitchen lighting.",
     "perfume_fragrance": "Luxury glass perfume bottle on elegant reflective surface with soft dramatic rim light.",
     "lipstick_makeup": "Lipstick tube uncapped showing pristine angled bullet, next to sleek matching cap.",
     "skincare": "Amber or frosted glass dropper bottle standing on clean bathroom vanity surface with fresh water droplet accent.",
     "mask_facial": "Modern cosmetic facial mask pouch package with clean layout on soft pastel surface.",
-    "fashion_apparel": "Fashion item styled cleanly on minimal display mannequin or flat surface with authentic fabric texture.",
     "food_beverage": "Gourmet food or beverage styling with appetizing fresh garnishes and condensation.",
     "general_product": "Product centered on a clean studio display platform with soft shadow and crisp commercial lighting.",
 }
@@ -233,16 +369,23 @@ ATURAN:
 - MOTION CONTROL (camera_en): arahan kamera PRESISI Bahasa Inggris per beat, format: [shot size] + [SATU gerakan kamera] + [kecepatan] + [arah]. Shot size pilih satu: extreme close-up / close-up / medium shot / wide shot. Gerakan pilih SATU saja: static / slow push in / slow pull out / pan left / pan right / tilt up / tilt down / slow orbit / tracking shot / handheld. DILARANG menggabungkan dua gerakan dalam satu beat.
 - action: HANYA aksi subjek/produk (Bahasa Inggris), TANPA gerakan kamera.
 - PANDUAN SEMUA KATEGORI PRODUK (ANTI-ANOMALI 100%):
-  1. TWS / AUDIO: Charging case terbuka memperlihatkan 2 earbud di slot magnetik. Saat dipakai di telinga: pas di concha telinga dengan stem mengarah ke bawah sepanjang rahang. DILARANG earbud melayang atau berubah jadi perhiasan!
-  2. HP / GADGET / LAPTOP: Layar menyala menampilkan wallpaper minimalis atau UI modern tanpa teks aneh. Jari memegang bezel/sisi bodi tanpa tembus layar. Modul kamera belakang dan tombol fisik presisi sesuai referensi.
-  3. ALAT DAPUR / APPLIANCES: Letakkan di atas meja dapur kokoh. Pisau memotong bahan nyata di talenan; blender berputar di dalam pitcher tertutup; uap panas natural; tangan memegang gagang ergonomis aman.
-  4. PARFUM / SPRAY: Botol kaca bening mewah dengan pantulan cahaya dan selang dalam terlihat. Semprotan micro-mist halus menyebar anggun ke pergelangan tangan atau leher. DILARANG cairan bocor/mengucur deras.
-  5. LIPSTIK / MAKEUP: WAJIB perlihatkan transfer warna nyata! Bibir polos seketika terlapisi pigmen warna pekat dan glossy/matte sesuai shade produk. DILARANG bibir tetap polos saat dioles!
-  6. SKINCARE / SERUM: Pipet kaca meneteskan 1-2 tetes cairan bening ke pipi/tangan, diratakan dengan jari lembut sampai meresap, menghasilkan kulit glowing sehat alami dengan pori natural (bukan kulit lilin/plastik).
-  7. MASKER (SHEET/CLAY/MEDIS): Sheet mask adalah lapisan kain/tissue terpisah dengan lubang mata/hidung/mulut yang pas menempel di kontur wajah (bukan kulit wajah yang meleleh!). Clay mask dioleskan rata menghindari mata/bibir.
-  8. FASHION / TAS / SEPATU / JAM: Tekstur bahan nyata (serat kain, kulit, jahitan). Tas digendong/dijinjing dengan gravitasi alami. Jam tangan melingkar rapi di pergelangan dengan dial tajam.
-  9. MAKANAN / MINUMAN: Tampilan lezat menggugah selera, cairan dituang mengalir mulus ke dalam gelas dengan dinamika air natural, tekstur renyah/segar.
-  10. PRODUK UMUM LAINNYA: Interaksi fisik alami sesuai fungsi asli benda, menempel di permukaan solid, bayangan kontak akurat, tanpa objek melayang atau distorsi tangan.
+  1. TWS / AUDIO: Charging case terbuka memperlihatkan 2 earbud di slot magnetik. Saat dipakai di telinga: pas di concha telinga dengan stem mengarah ke bawah sepanjang rahang. DILARANG earbud melayang atau berubah jadi anting/perhiasan!
+  2. SPEAKER / AUDIO BLUETOOTH: Bodi speaker akustik kokoh dengan jaring/grille mesh rapi. Efek bass HANYA diperlihatkan lewat getaran fisik natural pada membran pasif radiator. DILARANG ada gambar not balok melayang atau lingkaran gelombang kartun!
+  3. DISPENSER AIR / GALON: Bodi dispenser tegak di lantai/meja dengan drip tray bersih. Gelas diletakkan tepat di bawah corong; air mengalir bening laminar lurus ke dalam gelas dengan dinamika riak air realistis. DILARANG air bocor, tumpah ke luar, atau gelas melayang!
+  4. POMPA ELEKTRIK (GALON & BAN): Pompa galon terpasang rapat tegak di leher galon, pipa stainless mengarah ke bawah mengucurkan air tenang saat tombol ditekan. Pompa ban elektrik tersambung kuat selangnya ke pentil ban, layar digital menunjukkan angka tekanan (PSI/Bar) stabil tanpa guncangan liar atau percikan api.
+  5. KIPAS ANGIN (MEJA / BERDIRI / LEHER): Baling-baling berputar halus di dalam jaring pengaman lingkaran; hembusan angin dibuktikan HANYA lewat efek lingkungan alami (rambut bergoyang halus, kain pita melambai), DILARANG asap putih atau garis angin kartun! Kipas leher melingkar pas di leher menghembus sejuk ke rahang.
+  6. JAM TANGAN / SMARTWATCH: Melingkar pas di pergelangan tangan di atas tulang pergelangan dengan tali kulit/logam/silikon kencang. Kaca safir bening bebas pantulan aneh, jarum jam bergerak halus wajar (DILARANG berputar cepat seperti baling-baling!). Layar smartwatch menampilkan UI jam/fitness minimalis tajam tanpa teks acak.
+  7. PAKAIAN / BAJU / ATASAN: Jatuhnya kain natural mengikuti lekuk tubuh, serat kain dan jahitan rapi, kancing/resleting utuh. DILARANG baju tembus ke kulit/badan atau logo/sablon meleleh saat bergerak!
+  8. CELANA / JEANS / ROK: Bagian pinggang pas dengan ban pinggang dan saku rapi. Dua pipa celana terpisah tegas menutupi kaki dengan lipatan natural di lutut/tumit. DILARANG kaki menyatu atau kulit tembus ke celana!
+  9. TAS & SEPATU: Tas menggantung dengan gravitasi dan tarikan tali alami di pundak/tangan. Sepatu menapak rata di lantai dengan sol dan tali sepatu presisi, proporsi anatomi kaki sempurna.
+  10. HP / GADGET / LAPTOP: Layar menyala menampilkan wallpaper minimalis atau UI modern tanpa teks aneh. Jari memegang bezel/sisi bodi tanpa tembus layar. Modul kamera belakang dan tombol fisik presisi sesuai referensi.
+  11. ALAT DAPUR / APPLIANCES: Letakkan di atas meja dapur kokoh. Pisau memotong bahan nyata di talenan; blender berputar di dalam pitcher tertutup; uap panas natural; tangan memegang gagang ergonomis aman.
+  12. PARFUM / SPRAY: Botol kaca bening mewah dengan pantulan cahaya dan selang dalam terlihat. Semprotan micro-mist halus menyebar anggun ke pergelangan tangan atau leher. DILARANG cairan bocor/mengucur deras.
+  13. LIPSTIK / MAKEUP: WAJIB perlihatkan transfer warna nyata! Bibir polos seketika terlapisi pigmen warna pekat dan glossy/matte sesuai shade produk. DILARANG bibir tetap polos saat dioles!
+  14. SKINCARE / SERUM: Pipet kaca meneteskan 1-2 tetes cairan bening ke pipi/tangan, diratakan dengan jari lembut sampai meresap, menghasilkan kulit glowing sehat alami dengan pori natural (bukan kulit lilin/plastik).
+  15. MASKER (SHEET/CLAY/MEDIS): Sheet mask adalah lapisan kain/tissue terpisah dengan lubang mata/hidung/mulut yang pas menempel di kontur wajah (bukan kulit wajah yang meleleh!). Clay mask dioleskan rata menghindari mata/bibir.
+  16. MAKANAN / MINUMAN: Tampilan lezat menggugah selera, cairan dituang mengalir mulus ke dalam gelas dengan dinamika air natural, tekstur renyah/segar.
+  17. PRODUK UMUM LAINNYA: Interaksi fisik alami sesuai fungsi asli benda, menempel di permukaan solid, bayangan kontak akurat, tanpa objek melayang atau distorsi tangan.
 - ATURAN MODE AUDIO:
   - Jika audio 'asmr' atau 'musik': video ini adalah TANPA SUARA BICARA (NO VOICEOVER).
     Karakter DILARANG berbicara atau menggerakkan mulut ke kamera! Bibir tetap tertutup rileks.
@@ -535,7 +678,8 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
     style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
     frame_desc = FRAME_HINT.get(framing, "")
     audio_desc = AUDIO_HINT.get(audio, AUDIO_HINT.get("vo", ""))
-    cat = get_product_category(produk or "", board.get("marketing_angle", ""))
+    cat_context = f"{board.get('title', '')} {board.get('marketing_angle', '')}"
+    cat = get_product_category(produk or "", cat_context)
     cat_directive = CATEGORY_DIRECTIVES.get(cat, CATEGORY_DIRECTIVES["general_product"])
 
     segment_prompts = []
@@ -681,6 +825,8 @@ _ID_MATERIALS = [
     ("aluminum", "aluminum"),
     ("logam", "metal"),
     ("metal", "metal"),
+    ("titanium", "titanium"),
+    ("besi", "iron"),
     ("plastik", "plastic"),
     ("silikon", "silicone"),
     ("karet", "rubber"),
@@ -688,10 +834,23 @@ _ID_MATERIALS = [
     ("kayu", "wood"),
     ("kulit", "leather"),
     ("kain", "fabric"),
+    ("katun", "cotton"),
+    ("cotton", "cotton"),
+    ("denim", "denim"),
+    ("jeans", "denim"),
+    ("linen", "linen"),
+    ("rajut", "knit fabric"),
+    ("knit", "knit fabric"),
+    ("fleece", "fleece fabric"),
+    ("sutra", "silk"),
+    ("silk", "silk"),
+    ("polyester", "polyester"),
     ("kanvas", "canvas"),
     ("keramik", "ceramic"),
     ("kertas", "paper"),
     ("kardus", "cardboard"),
+    ("akrilik", "acrylic"),
+    ("mesh", "mesh fabric"),
 ]
 
 
