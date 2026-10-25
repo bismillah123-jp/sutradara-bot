@@ -24,6 +24,7 @@ from admin import (
 from storyboard import (
     generate_storyboard, build_video_prompt, ENHANCE_PROMPT, catalog_prompt,
     ANOMALY_LOCK, CONSISTENCY_LOCK, _call_omni, analyze_catalog_variants,
+    build_frame_prompt,
 )
 import billing
 import antrean
@@ -62,7 +63,7 @@ FRAMES = {"fullbody": "\U0001F9CD Full Body", "setengah": "\U0001F464 Setengah B
 def new_session(uid: int) -> dict:
     s = {"produk": "", "deskripsi": "", "kandidat": [],
          "style": "ugc", "audio": "vo", "framing": "tangan",
-         "durasi": 10, "board": None, "frames": [],
+         "durasi": 8, "board": None, "frames": [],
          "status_id": None, "workdir": None, "katalog": None}
     sessions[uid] = s
     return s
@@ -1211,7 +1212,12 @@ async def produksi_awal(context, chat_id: int, s: dict):
             for i, sc in enumerate(scenes):
                 await say(context, chat_id, s,
                           progress_ts(f"Lagi bikin frame {i+1}/{len(scenes)} - {sc['judul']}..."))
-                prompt = f"{sc['visual_prompt']}\n{CONSISTENCY_LOCK}\n{ANOMALY_LOCK}"
+                prompt = build_frame_prompt(
+                    sc,
+                    spec_text=board.get("product_spec_text", ""),
+                    style=s.get("style", "sinematik"),
+                    framing=s.get("framing", "tangan"),
+                )
                 img = None
                 try:
                     img = await flow.generate_image(prompt, "9:16",
@@ -1681,12 +1687,8 @@ async def back_dari_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("\u23f1\ufe0f 6 dtk", callback_data="dur:6"),
-        InlineKeyboardButton("\u23f1\ufe0f 8 dtk", callback_data="dur:8"),
-        InlineKeyboardButton("\u23f1\ufe0f 10 dtk", callback_data="dur:10"),
-    ], [InlineKeyboardButton("\u2b05\ufe0f Kembali", callback_data="nav:back")]])
-    await q.edit_message_text(ft("Terakhir, durasinya berapa detik?"), reply_markup=kb)
+    teks, kb = _ui_durasi(s)
+    await q.edit_message_text(teks, reply_markup=kb)
     return OPSI_DURASI
 
 

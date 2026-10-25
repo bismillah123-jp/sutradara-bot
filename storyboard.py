@@ -11,145 +11,39 @@ OMNI_BASE = os.environ.get("OMNI_BASE", "http://192.168.1.7:20128/v1")
 OMNI_KEY = os.environ.get("OMNI_API_KEY", "")
 OMNI_MODEL = os.environ.get("OMNI_TEXT_MODEL", "bima")
 
-ANOMALY_LOCK = (
-    "ANATOMY LOCK: anatomically correct human body, each hand has exactly five fingers, "
-    "no extra limbs, no extra fingers, no merged fingers, no distorted face, no morphing, "
-    "no warped product shape, clean stable motion."
+ANATOMY_LOCK = (
+    "ANATOMY & PHYSICS: Anatomically correct human hands with exactly five fingers, "
+    "natural skin texture and realistic joints. Clean physical interaction with the product, "
+    "objects rest naturally on solid surfaces, no floating objects, no clipping, "
+    "no extra limbs, no hand warping."
 )
+ANOMALY_LOCK = ANATOMY_LOCK
+
 CONSISTENCY_LOCK = (
-    "CONSISTENCY LOCK: the product keeps the EXACT same shape, color, material, texture, finish, label design, "
-    "all parts, components and proportions as the reference image in EVERY scene without exception. "
-    "Same character, same face, same outfit, same hairstyle, same lighting style, same "
-    "background mood throughout the whole video. Nothing morphs between beats."
+    "CONSISTENCY: The product is 100% identical in every frame to reference image #1 (golden catalog reference) "
+    "- exact same form, color, texture, finish, typography, branding, and packaging. "
+    "Consistent lighting, mood, and character appearance throughout."
 )
+
+MOTION_LOCK = (
+    "CAMERA MOTION: Smooth, steady cinematic camera movement executed on a professional gimbal. "
+    "One continuous camera movement per shot at uniform speed, no random jerks, no drifting, "
+    "no jitter, natural fluid subject motion."
+)
+
 PRODUCT_LOCK_TMPL = (
-    "PRODUCT IDENTITY LOCK (HIGHEST PRIORITY - overrides any conflicting beat description): "
-    "The product is: {product}. This EXACT item - identical shape, identical color, identical material, identical texture, identical finish, "
-    "identical label design, identical parts and components, identical proportions - "
-    "MUST appear in every beat. FORBIDDEN: restyling the product, changing its material, "
-    "changing its color, shifting its colors brighter or darker, redesigning the label, adding or removing parts. If a beat describes "
-    "the product differently, IGNORE that part and follow THIS lock instead."
+    "PRODUCT FIDELITY: The product is {product}. "
+    "It must match the reference image exactly in color, shape, materials, and branding."
 )
 
 SCENE_LOGIC_LOCK = (
-    "SCENE LOGIC - every scene must be physically and spatially coherent: "
-    "1) PRODUCT STATE: define the product's state in each scene (open/closed, on/off, "
-    "upright/lying, assembled/disassembled) and keep EVERY element consistent with it. "
-    "A closed product cannot show a lit screen or display. An opened cap cannot appear sealed. "
-    "2) SPATIAL SYNC: the product's orientation, the camera angle, and any hands or props "
-    "interacting with it must agree in 3D space. Hands must touch the product at physically "
-    "plausible points relative to its current angle - never floating, never clipping through. "
-    "3) NO IMPOSSIBLE PHYSICS: no floating products unless the scene is about levitation, "
-    "no hands passing through solid parts, no shadows or reflections that contradict the light source. "
-    "If a scene shows interaction, the contact must look real."
+    "State continuity between shots must be logical: product state, angle, and hands "
+    "agree in 3D space with natural physics."
 )
 
-LANGUAGE_LOCK = (
-    "LANGUAGE LOCK: all spoken words and any on-screen text must be in Bahasa Indonesia only. "
-    "Minimal on-screen text, do not overload the frame with text."
-)
-# ===== ANTI-ANOMALY LOCK SYSTEM v2 (total overhaul) =====
-# PRODUCT SPEC is the visual ground truth of the product.
-# Injected into EVERY scene prompt (never only once at the top).
-# Source priority: vision image wins over description text.
+LANGUAGE_LOCK = "Spoken narration in Indonesian; video prompts in English."
 SPEC_SOURCE_IMAGE = "catalog image (visual ground truth)"
-SPEC_SOURCE_DESC = "product description (no catalog image available)"
-
-PRODUCT_SPEC_TMPL = (
-    "PRODUCT SPEC (MUST BE IDENTICAL IN EVERY SCENE): {name}"
-    " | Color: [{color}] | Material: [{material}] | Shape: [{shape}]"
-    " | Size: [{size}] | Count: [{count}] | Key features: [{features}]"
-    " | Spec source: [{source}]"
-    " | FORBIDDEN: changing color, adding or removing units,"
-    " changing shape or material."
-    " Do not invent details that are not stated in this spec."
-)
-
-MOTION_LOCK = (
-    "Smooth, natural, physically plausible motion. No warping, no morphing, "
-    "no teleporting objects."
-)
-
-ANOMALY_LOCK = (
-    "UNIVERSAL PRODUCT RULES - these apply to EVERY product type "
-    "(electronics, fashion, food and beverage, cosmetics, furniture, and any "
-    "other object): "
-    "NO COLOR SHIFT - the exact color in PRODUCT SPEC must never change "
-    "between scenes. "
-    "NO COUNT CHANGE - the exact number of units in PRODUCT SPEC must never "
-    "change between scenes. "
-    "NO SHAPE/MATERIAL CHANGE - shape and material stay identical in every "
-    "scene. "
-    "NO IMPOSSIBLE PHYSICS - hands must touch and operate the product at the "
-    "correct position; objects rest on real surfaces. "
-    "NO FLOATING OBJECTS - nothing hovers without physical support. "
-    "NO EXTRA LIMBS/FINGERS - correct human anatomy, correct finger count, "
-    "no duplicated or missing body parts. "
-    "NO WRONG PRODUCT / VARIANT MIXING - only the specified product and the "
-    "specified variant may appear in frame. "
-    "TEXT/LOGO CONSISTENCY - any text or logo on the product must stay "
-    "identical and legible in every scene, never degrade into different "
-    "gibberish."
-)
-
-CONSISTENCY_LOCK = (
-    "The product is the SAME physical item in every scene: identical color, "
-    "material, shape, size, unit count, logos and text as defined in PRODUCT "
-    "SPEC. Product state (open/closed, on/off, sealed/unsealed) must evolve "
-    "logically from the previous scene and never contradict it."
-)
-
-PRODUCT_LOCK_TMPL = (
-    "{spec} "
-    "This specification is the visual ground truth. It overrides style, "
-    "composition and camera direction whenever they conflict."
-)
-
-SCENE_LOGIC_LOCK = (
-    "State continuity between scenes must be logical: unboxing is one-way "
-    "(sealed -> opened, never the reverse); a device that is off cannot show "
-    "an active screen unless a hand is clearly turning it on; a closed laptop "
-    "has a dark screen; hands type only on a keyboard that is in front of "
-    "them and aligned with the device. "
-    "One product variant per video: never show another variant of the same "
-    "product in the same video. "
-    "Before rendering each scene, run the SCENE CONSISTENCY CHECKLIST."
-)
-
-SCENE_CHECKLIST_BLOCK = (
-    "SCENE CONSISTENCY CHECKLIST - run BEFORE generating this scene; fix the "
-    "scene if any check fails: "
-    "(1) Does the product color exactly match PRODUCT SPEC? "
-    "(2) Does the product count match PRODUCT SPEC? "
-    "(3) Is the product state logical? (closed/open, on/off consistent with "
-    "the previous scene) "
-    "(4) Is the physics plausible? (hands touch the product at the correct "
-    "position, no floating objects, no oddly cropped body parts) "
-    "(5) Is there no other product or variant straying into the frame?"
-)
-
-USAGE_DIRECTION_BLOCK = (
-    "USAGE DIRECTION: Hands must hold and operate the product in the correct, "
-    "natural way for this product type. If unsure, show the product still in "
-    "a natural position (on a table / held steady) rather than attempting a "
-    "risky action that could cause anomalies."
-)
-
-GOLDEN_REF_LINE = (
-    "The attached reference image is the GOLDEN product reference (original "
-    "catalog) - match the product to it exactly; never copy flaws from "
-    "anywhere else."
-)
-
-LANGUAGE_LOCK = "Narration/voiceover in Indonesian; prompts in English."
-MOTION_LOCK = (
-    "MOTION CONTROL: follow the Camera line of each beat EXACTLY - one single camera "
-    "movement per beat, at the written speed and direction, smooth and steady as if shot "
-    "on a gimbal. No sudden jerks, no random zoom, no camera shake (unless the beat "
-    "explicitly says handheld), no drifting, and NO movement that is not written in the "
-    "beats. The subject performs ONLY the written action - nothing more, nothing less. "
-    "Motion flows continuously; changes happen only at beat boundaries."
-)
+SPEC_SOURCE_DESC = "product description"
 
 FRAME_HINT = {
     "fullbody": "full body shot, the person is visible head to toe",
@@ -352,15 +246,19 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
                               style: str, audio: str, framing: str,
                               katalog_path: str = None,
                               vision_spec: dict = None) -> dict:
-    n_scene = max(2, durasi // 2)
+    total_segments = max(1, int(durasi) // 8)
+    n_scene = max(2, total_segments * 2)
     user = (
         f"Produk: {produk}\nDeskripsi produk: {deskripsi}\n"
-        f"Durasi total video: {durasi} detik. Tulis TEPAT {n_scene} beat.\n"
-        f"Style visual: {style}. {STYLE_BOARD_GUIDE.get(style, "")} Framing: {FRAME_HINT.get(framing, "")}. "
+        f"Durasi total video: {durasi} detik ({total_segments} segmen @ 8 detik).\n"
+        f"Tulis TEPAT {n_scene} beat cerita berurutan (2 beat per segmen 8 detik, masing-masing 4 detik).\n"
+        f"PENTING: Alur cerita harus MAJU dan BERBEDA di setiap beat. DILARANG MENGULANG adegan/aksi yang sama!\n"
+        f"Beat 1-2: Hook & pembuka dramatis memperkenalkan {produk}.\n"
+        + (f"Beat 3-4: Demonstrasi fungsi utama dan detail produk secara nyata.\n" if total_segments >= 2 else "")
+        + (f"Beat 5-6: Hasil memuaskan, variasi pemakaian, dan Call to Action beli di keranjang kuning.\n" if total_segments >= 3 else (f"Beat {n_scene}: Call to Action beli di keranjang kuning.\n" if total_segments == 1 else f"Beat 4: Call to Action beli di keranjang kuning.\n"))
+        + f"Style visual: {style}. {STYLE_BOARD_GUIDE.get(style, '')} Framing: {FRAME_HINT.get(framing, '')}.\n"
         f"Mode audio: {AUDIO_LABEL.get(audio, audio)}.\n"
-        f"Product visual spec: output product_spec dict."
-        f"Keys: color, material, shape, size, count, key_features."
-        f"NEVER invent. If unknown write not specified."
+        f"Product visual spec: output product_spec dict dengan keys: color, material, shape, size, count, key_features."
     )
     raw = _call_omni(SYSTEM_BOARD, user)
     raw = re.sub(r"^```[a-z]*\n?", "", raw.strip())
@@ -387,8 +285,6 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
             sc["camera_en"] = "Close-up, static camera, perfectly steady"
     spec_text = build_product_spec(produk, deskripsi, board.get("product_spec") or {}, vision_spec)
     board["product_spec_text"] = spec_text
-    guard = spec_text + chr(10) + GOLDEN_REF_LINE + chr(10) + SCENE_CHECKLIST_BLOCK + chr(10) + USAGE_DIRECTION_BLOCK
-    [s.__setitem__("visual_prompt", s["visual_prompt"] + chr(10) + guard) for s in board["scenes"]]
     return board
 
 
@@ -413,51 +309,122 @@ STYLE_BOARD_GUIDE = {
     "aesthetic": "Direct the beats like a soft dreamy mood film: cozy beautiful settings, gentle slow movements, pastel Instagram-aesthetic vibe.",
 }
 
+def build_frame_prompt(sc: dict, spec_text: str = "",
+                       style: str = "sinematik", framing: str = "tangan") -> str:
+    """Prompt for generating a single storyboard reference frame (9:16)."""
+    base = sc.get("visual_prompt") or sc.get("judul") or "Product commercial shot"
+    style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
+    frame_desc = FRAME_HINT.get(framing, "")
+    parts = [
+        f"High quality 9:16 vertical commercial photo. {base}.",
+        f"Style & Framing: {style_desc} {frame_desc}".strip(),
+    ]
+    if spec_text:
+        parts.append(f"Product fidelity: {spec_text}")
+    parts.append(ANATOMY_LOCK)
+    parts.append("Clean composition, professional studio lighting, centered subject, crystal sharp details, no text, no watermark.")
+    return "\n".join(parts)
+
+
+def build_segment_prompts(board: dict, produk: str, durasi: int,
+                          style: str = "sinematik", audio: str = "vo",
+                          framing: str = "tangan", golden_ref: bool = True) -> list:
+    """Build clean, targeted English prompts per 8-second Veo segment.
+
+    Prevents scene repetition and visual looping by strictly partitioning beats
+    across segments:
+    - 8s (1 segment): Shots 1-2 (0-8s)
+    - 16s (2 segments): Segment 1 -> Shots 1-2 (0-8s); Segment 2 -> Shots 3-4 (8-16s)
+    - 24s (3 segments): Segment 1 -> Shots 1-2; Segment 2 -> Shots 3-4; Segment 3 -> Shots 5-6
+    """
+    scenes = board.get("scenes") or []
+    if not scenes:
+        scenes = [{
+            "judul": "Product Showcase",
+            "visual_prompt": f"Close-up commercial showcase of {produk}",
+            "action": f"Demonstrating {produk} features smoothly",
+            "camera_en": "Close-up, slow push in, steady",
+            "narasi": "",
+        }]
+
+    total_segments = max(1, int(durasi) // 8)
+    n = len(scenes)
+    step = n / total_segments
+
+    spec_text = board.get("product_spec_text") or build_product_spec(produk, "", None, None)
+    style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
+    frame_desc = FRAME_HINT.get(framing, "")
+    audio_desc = AUDIO_HINT.get(audio, AUDIO_HINT.get("vo", ""))
+
+    segment_prompts = []
+
+    for k in range(total_segments):
+        start_idx = int(round(k * step))
+        end_idx = n if k == total_segments - 1 else int(round((k + 1) * step))
+        seg_scenes = scenes[start_idx:end_idx]
+        if not seg_scenes:
+            seg_scenes = scenes[-1:]
+
+        seg_t_start = k * 8
+        seg_t_end = (k + 1) * 8
+
+        parts = []
+        if total_segments == 1:
+            parts.append(
+                f"Create an 8-second vertical 9:16 TikTok commercial video for: {produk}."
+            )
+        else:
+            if k == 0:
+                parts.append(
+                    f"Create an 8-second vertical 9:16 TikTok commercial video [Segment 1 of {total_segments}, 0-8s] for: {produk}."
+                )
+            else:
+                parts.append(
+                    f"Create an 8-second vertical 9:16 TikTok commercial video [Segment {k+1} of {total_segments}, {seg_t_start}-{seg_t_end}s] for: {produk}.\n"
+                    "CONTINUITY: Seamless visual and physical continuity from the attached previous scene reference. "
+                    "Maintain exact same character, outfit, product position, background environment, and lighting. "
+                    "Continue the action forward naturally without restarting or repeating earlier actions."
+                )
+
+        parts.append(f"Style: {style_desc} Framing: {frame_desc}".strip())
+        parts.append(f"Product fidelity (match reference image #1): {spec_text}")
+
+        if board.get("character_lock"):
+            parts.append(f"Character: {board['character_lock']}")
+
+        parts.append("SHOTS TO EXECUTE IN THIS 8-SECOND SEGMENT:")
+        m = len(seg_scenes)
+        for j, sc in enumerate(seg_scenes):
+            shot_start = int(round(j * (8.0 / m)))
+            shot_end = 8 if j == m - 1 else int(round((j + 1) * (8.0 / m)))
+            shot_num = start_idx + j + 1
+            vis = sc.get("visual_prompt", "").strip() or sc.get("judul", "Showcase")
+            act = sc.get("action", "").strip()
+            cam = sc.get("camera_en", "").strip() or "Close-up, steady gimbal movement"
+            parts.append(
+                f"- Shot {shot_num} ({shot_start}-{shot_end}s in this segment): {vis}. Action: {act}. Camera: {cam}."
+            )
+
+        if audio_desc:
+            parts.append(audio_desc)
+
+        parts.append(ANATOMY_LOCK)
+        parts.append(MOTION_LOCK)
+        parts.append("Final result: Razor-sharp product focus, seamless motion, zero visual artifacts, television commercial grade.")
+
+        segment_prompts.append("\n\n".join(parts))
+
+    return segment_prompts
+
+
 def build_video_prompt(board: dict, produk: str, durasi: int,
                        style: str, audio: str, framing: str,
-                       golden_ref: bool = False) -> str:
-    scenes = board["scenes"]
-    n = len(scenes)
-    seg = max(1, durasi // n)
-    spec_text = board.get("product_spec_text") or build_product_spec(produk, "", None, None)
-    beats = []
-    t = 0
-    for i, sc in enumerate(scenes):
-        t2 = durasi if i == n - 1 else t + seg
-        beats.append(f"Beat {i+1} ({t}-{t2}s): {sc['visual_prompt']} "
-                     f"Action: {sc['action']} Camera: {sc['camera_en']}")
-        t = t2
-    beats = [b + chr(10) + spec_text for b in beats]
-    narasi = " ".join(sc["narasi"] for sc in scenes if sc["narasi"])
-    prod_ident = board.get("product_identity") or produk
-    parts = [
-        f"Create a {durasi}-second vertical 9:16 TikTok product advertisement.",
-        "",
-        "PRODUCT - identical in every frame, no exceptions:",
-        prod_ident,
-        "",
-        (STYLE_DIRECTING.get(style, STYLE_DIRECTING["sinematik"]) + " " + FRAME_HINT.get(framing, "")).strip(),
-        *(["\"Cinematic premium commercial look: clean dramatic lighting, rich saturated colors, \","] if style == "sinematik" else []),
-        "razor-sharp focus on the product, satisfying to watch.",
-        "",
-        "STORYBOARD - follow beats in exact order, seamless transitions at beat boundaries:",
-        *beats,
-        "",
-        AUDIO_HINT.get(audio, ""),
-    ]
-    if audio == "vo" and narasi:
-        parts.append(f'The voiceover says exactly, in Bahasa Indonesia: "{narasi}"')
-    if board.get("character_lock"):
-        parts.append(f"Character: {board['character_lock']}")
-    if golden_ref:
-        parts.append("GOLDEN ref: image 1 is catalog. Match exactly.")
-    parts += [PRODUCT_LOCK_TMPL.format(spec=spec_text),
-              SCENE_LOGIC_LOCK,
-              SCENE_CHECKLIST_BLOCK, USAGE_DIRECTION_BLOCK,
-              MOTION_LOCK, CONSISTENCY_LOCK, ANOMALY_LOCK, LANGUAGE_LOCK,
-              STYLE_CLOSING.get(style, STYLE_CLOSING["sinematik"]),
-              "Every frame polished, every transition seamless."]
-    return "\n".join(parts)
+                       golden_ref: bool = True):
+    """Returns per-segment prompt list for multi-segment videos or single string if 8s."""
+    prompts = build_segment_prompts(board, produk, durasi, style, audio, framing, golden_ref)
+    if durasi <= 8 and len(prompts) == 1:
+        return prompts[0]
+    return prompts
 
 
 ENHANCE_PROMPT = (
@@ -639,14 +606,14 @@ _NOT_SPECIFIED = "not specified"
 
 
 def _clean_spec(v) -> str:
-    v = (v or "").strip()
+    v = str(v or "").strip()
     return v if v and v.lower() != _NOT_SPECIFIED else ""
 
 
 def build_product_spec(produk: str, deskripsi: str = "",
                        ai_spec: dict = None,
                        vision_spec: dict = None) -> str:
-    """Build UNIVERSAL PRODUCT SPEC BLOCK. Vision wins over text."""
+    """Build concise product spec for diffusion model conditioning."""
     ai_spec = ai_spec or {}
     vision_spec = vision_spec or {}
     hints = extract_visual_hints(deskripsi or "")
@@ -656,35 +623,28 @@ def build_product_spec(produk: str, deskripsi: str = "",
             v = _clean_spec(src.get(field))
             if v:
                 return v
-        return _clean_spec(hints.get(field)) or _NOT_SPECIFIED
+        return _clean_spec(hints.get(field))
 
-    color = pick("color")
-    material = pick("material")
-    shape = pick("shape")
-    size = pick("size")
-    count = pick("count")
-    features = pick("key_features")
+    items = [f"Product: {produk or 'featured item'}"]
+    for label, field in [
+        ("Color", "color"),
+        ("Material", "material"),
+        ("Shape", "shape"),
+        ("Size", "size"),
+        ("Count", "count"),
+        ("Key features", "key_features"),
+    ]:
+        val = pick(field)
+        if val:
+            items.append(f"{label}: {val}")
 
-    _FIELDS = ("color", "material", "shape", "size", "count", "key_features")
-    if any(_clean_spec(vision_spec.get(k)) for k in _FIELDS):
-        source = SPEC_SOURCE_IMAGE
-    elif any(_clean_spec(ai_spec.get(k)) for k in _FIELDS):
-        source = "AI analysis of product data (no catalog image available)"
-    else:
-        source = SPEC_SOURCE_DESC
-
-    return PRODUCT_SPEC_TMPL.format(
-        name=produk or "the product",
-        color=color, material=material, shape=shape, size=size,
-        count=count, features=features, source=source,
-    )
+    return " | ".join(items)
 
 
 def build_scene_prompt(visual_prompt: str, spec_text: str = "") -> str:
-    """Compose ONE scene prompt: visual + PRODUCT SPEC + guard blocks."""
+    """Compose ONE scene prompt: visual + PRODUCT SPEC + locks."""
     parts = [visual_prompt or ""]
     if spec_text:
         parts.append(spec_text)
-    parts += [GOLDEN_REF_LINE, SCENE_CHECKLIST_BLOCK, USAGE_DIRECTION_BLOCK,
-              CONSISTENCY_LOCK, ANOMALY_LOCK]
+    parts += [CONSISTENCY_LOCK, ANOMALY_LOCK]
     return "\n".join(parts)

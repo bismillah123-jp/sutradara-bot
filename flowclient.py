@@ -78,24 +78,16 @@ def stitch_mp4(parts, out_path):
     return out_path
 
 
-CONSISTENCY_CHECKLIST = (
-    "CONSISTENCY CHECKLIST (wajib dipatuhi di setiap segmen):\n"
-    "1. INGREDIENT #1 adalah acuan utama produk: bentuk, warna, label,\n"
-    "   kemasan, dan proporsi harus sama persis di semua segmen.\n"
-    "2. Jika ada INGREDIENT berupa frame lanjutan, jadikan kondisi awal\n"
-    "   adegan: lanjutkan gerakan dan komposisi dari frame tersebut.\n"
-    "3. Jaga gaya visual, pencahayaan, dan sudut kamera tetap konsisten.\n"
-    "4. Produk harus selalu terlihat jelas dan menjadi fokus utama."
-)
-
-
 def with_consistency(prompt, segment=0, total=1):
-    tag = ""
-    if total > 1 and segment > 0:
-        tag = ("[SEGMEN %d/%d - durasi 8 detik] Lanjutkan video dari referensi "
-               "dengan mulus; akhiri segmen pada pose yang mudah dilanjutkan.\n\n"
-               % (segment, total))
-    return "%s%s\n\n%s" % (tag, prompt, CONSISTENCY_CHECKLIST)
+    """Ensure seamless continuity for multi-segment videos without prompt pollution."""
+    if total <= 1 or segment <= 1 or "CONTINUITY:" in prompt:
+        return prompt
+    continuity_tag = (
+        "CONTINUITY: Seamless visual and physical continuity from the attached reference frame. "
+        "Maintain identical character, outfit, product position, background environment, and lighting. "
+        "Continue the action forward naturally without restarting or repeating earlier scenes.\n\n"
+    )
+    return f"{continuity_tag}{prompt}"
 
 
 def _image_model(aspect):
@@ -181,9 +173,10 @@ class FlowClient:
                 if asyncio.iscoroutine(r):
                     await r
             wd = workdir or tempfile.mkdtemp(prefix="veo_")
+            p = prompt[0] if isinstance(prompt, (list, tuple)) else str(prompt)
             refs = self._ingredients(frame_paths, reference_images, wd)
             model = veo_model_name(aspect, with_images=bool(refs))
-            parts = self._video_parts(prompt, refs)
+            parts = self._video_parts(p, refs)
             data = {
                 "contents": [{"role": "user", "parts": parts}],
                 "generationConfig": {"responseModalities": ["VIDEO"]},
@@ -210,8 +203,12 @@ class FlowClient:
                                    aspect="9:16", reference_images=None,
                                    workdir=None, on_segment=None):
         wd = workdir or tempfile.mkdtemp(prefix="veo_seg_")
-        refs = self._ingredients(frame_paths, reference_images, wd)
+        catalog_refs = [p for p in (reference_images or []) if p]
+        catalog_hd = catalog_refs[0] if catalog_refs else None
         frames = [str(p) for p in (frame_paths or []) if p]
+
+        prompt_list = list(prompt) if isinstance(prompt, (list, tuple)) else [str(prompt)] * segments
+
         seg_files = []
         chain_frame = None
         for i in range(1, segments + 1):
@@ -219,18 +216,36 @@ class FlowClient:
                 r = on_segment(i, segments)
                 if asyncio.iscoroutine(r):
                     await r
-            seg_prompt = with_consistency(prompt, i, segments)
-            ingredients = list(refs[:VEO_MAX_IMAGES])
-            if chain_frame and chain_frame not in ingredients:
-                ingredients.insert(min(1, len(ingredients)), chain_frame)
-            for fp in frames:
-                if len(ingredients) >= VEO_MAX_IMAGES:
+            seg_p = prompt_list[i - 1] if i - 1 < len(prompt_list) else prompt_list[-1]
+            seg_prompt = with_consistency(seg_p, i, segments)
+
+            # Build ingredient images for this segment (up to VEO_MAX_IMAGES = 3):
+            # 1. Catalog HD is ALWAYS reference #1 (product fidelity)
+            # 2. For segment > 1: chain_frame (last frame of previous segment) is reference #2
+            # 3. Targeted storyboard frame for this segment as reference #3
+            seg_refs = []
+            if catalog_hd:
+                seg_refs.append(catalog_hd)
+
+            if i > 1 and chain_frame and os.path.exists(chain_frame):
+                seg_refs.append(chain_frame)
+
+            # Assign relevant frame(s) for this segment
+            frame_idx = (i - 1) * 2
+            cand_frames = []
+            if frame_idx < len(frames):
+                cand_frames.append(frames[frame_idx])
+            if frame_idx + 1 < len(frames):
+                cand_frames.append(frames[frame_idx + 1])
+            for cf in cand_frames + frames:
+                if len(seg_refs) >= VEO_MAX_IMAGES:
                     break
-                if fp not in ingredients:
-                    ingredients.append(fp)
+                if cf and cf not in seg_refs:
+                    seg_refs.append(cf)
+
             seg_bytes = await self.generate_video(
                 seg_prompt, [], seconds=VEO_SEGMENT_SECONDS,
-                aspect=aspect, reference_images=ingredients, workdir=wd)
+                aspect=aspect, reference_images=seg_refs, workdir=wd)
             seg_path = os.path.join(wd, "seg_%02d.mp4" % i)
             with open(seg_path, "wb") as f:
                 f.write(seg_bytes)
