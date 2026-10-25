@@ -20,9 +20,22 @@ ANATOMY_LOCK = (
 ANOMALY_LOCK = ANATOMY_LOCK
 
 CONSISTENCY_LOCK = (
-    "CONSISTENCY: The product is 100% identical in every frame to reference image #1 (golden catalog reference) "
+    "CONSISTENCY: The product itself is 100% identical in every frame to reference image #1 (golden catalog reference) "
     "- exact same form, color, texture, finish, typography, branding, and packaging. "
-    "Consistent lighting, mood, and character appearance throughout."
+    "Consistent lighting, mood, and character appearance throughout. "
+    "EXCEPTION FOR DEMO APPLICATION: When product is applied (such as lipstick onto lips, skincare onto skin, or makeup), "
+    "the lips/skin MUST visibly and dramatically transform in real-time with rich pigment and realistic before-and-after results."
+)
+
+APPLICATION_EFFECT_LOCK = (
+    "PRODUCT APPLICATION & COLOR TRANSFORMATION EFFECT: "
+    "Whenever a cosmetic, makeup, skincare, or lifestyle product is applied "
+    "(such as lipstick, lip tint, balm, foundation, blush, cream, or surface cleaner), "
+    "the physical application effect MUST be immediately visible and dramatic! "
+    "For lipstick and lip products: bare, natural lips visibly transform in real-time as the product glides across, "
+    "visibly coating and depositing rich, saturated, vibrant pigment onto the lips, "
+    "clearly transitioning from bare lips to fully covered, richly colored, defined lips in the product's exact shade. "
+    "Never show lipstick applied without the lips visibly changing to that color."
 )
 
 MOTION_LOCK = (
@@ -55,19 +68,23 @@ FRAME_HINT = {
 
 AUDIO_LABEL = {
     "vo": "voice over Bahasa Indonesia (narasi diucapkan di dalam video)",
-    "asmr": "ASMR, tanpa voice over",
-    "musik": "musik saja, tanpa voice over, tanpa narasi lisan",
-    "asmr_vo": "ASMR di video + voice over ditambah manual setelahnya (TETAP tulis narasi per beat sebagai skrip VO)",
+    "vo_id": "voice over Bahasa Indonesia (narasi diucapkan di dalam video)",
+    "vo_en": "voice over Bahasa Inggris (narasi diucapkan di dalam video)",
+    "asmr": "ASMR murni, TANPA voice over, TANPA bicara (hanya suara produk)",
+    "musik": "musik latar saja, TANPA voice over, TANPA bicara",
+    "asmr_vo": "ASMR di video + voice over manual (TETAP tulis narasi sebagai skrip VO)",
 }
 
 AUDIO_HINT = {
-    "vo": "AUDIO: cheerful Indonesian voiceover speaking the exact narration lines provided, natural UGC tone.",
-    "asmr": "AUDIO: ASMR style - no voiceover narration, only crisp amplified product sounds (tapping, pouring, clicking, packaging), soft and satisfying.",
-    "asmr_vo": "AUDIO: ASMR style - no voiceover narration in the video (the voiceover will be recorded and added manually afterwards), only crisp amplified product sounds (tapping, pouring, clicking, packaging), soft and satisfying.",
-    "musik": "AUDIO: upbeat trendy background music only, no speech, no voiceover.",
+    "vo": "AUDIO: Cheerful natural voiceover speaking in Indonesian about the product benefits.",
+    "vo_id": "AUDIO: Cheerful natural voiceover speaking in Indonesian about the product benefits.",
+    "vo_en": "AUDIO: Energetic natural English voiceover speaking in clear fluent English about the product benefits.",
+    "asmr": "AUDIO: Pure ASMR product foley audio only (crisp clicking, tapping, uncapping, texture sounds, ambient silence). Strictly zero human speech, zero voiceover, no spoken dialogue, completely silent vocals.",
+    "asmr_vo": "AUDIO: Pure ASMR product foley audio only (crisp clicking, tapping, uncapping, texture sounds). Zero spoken words in video, silent vocals.",
+    "musik": "AUDIO: Upbeat trendy background music only. Zero human voice, no speech, no voiceover, silent vocals.",
 }
 
-SYSTEM_BOARD = """Kamu adalah sutradara senior video affiliate TikTok Indonesia.
+SYSTEM_BOARD = """Kamu adalah sutradara senior video affiliate TikTok.
 
 SACRED FLOW:
 1. MIND READING: tangkap produk, keunggulan, target penonton, emosi yang menjual.
@@ -76,21 +93,34 @@ SACRED FLOW:
 4. PRODUCTION: tulis beat per beat.
 
 ATURAN:
-- marketing_angle: SATU kalimat tagline catchy Bahasa Indonesia (gaya headline iklan).
-- selling_points: 4 poin keunggulan singkat Bahasa Indonesia (maks 7 kata per poin).
+- marketing_angle: SATU kalimat tagline catchy (gaya headline iklan).
+- selling_points: 4 poin keunggulan singkat (maks 7 kata per poin).
 - Visual prompt Bahasa Inggris, SATU momen konkret per beat, produk persis seperti deskripsi & gambar referensi.
 - visual_id / camera_id / action_id: Bahasa Indonesia, untuk sheet storyboard. camera_id sebutkan angle & gerakan (misal "Close up, push in perlahan").
-- MOTION CONTROL (camera_en): arahan kamera PRESISI Bahasa Inggris per beat, format: [shot size] + [SATU gerakan kamera] + [kecepatan] + [arah]. Shot size pilih satu: extreme close-up / close-up / medium shot / wide shot. Gerakan pilih SATU saja: static / slow push in / slow pull out / pan left / pan right / tilt up / tilt down / slow orbit / tracking shot / handheld. DILARANG menggabungkan dua gerakan dalam satu beat, dilarang gerakan yang bertabrakan dengan action subjek.
-- action: HANYA aksi subjek/produk (Bahasa Inggris), TANPA gerakan kamera (kamera urusan camera_en).
-- Narasi Bahasa Indonesia gaya UGC santai, max 12 kata per beat.
+- MOTION CONTROL (camera_en): arahan kamera PRESISI Bahasa Inggris per beat, format: [shot size] + [SATU gerakan kamera] + [kecepatan] + [arah]. Shot size pilih satu: extreme close-up / close-up / medium shot / wide shot. Gerakan pilih SATU saja: static / slow push in / slow pull out / pan left / pan right / tilt up / tilt down / slow orbit / tracking shot / handheld. DILARANG menggabungkan dua gerakan dalam satu beat.
+- action: HANYA aksi subjek/produk (Bahasa Inggris), TANPA gerakan kamera.
+- EFEK NYATA & PERUBAHAN WARNA (SANGAT PENTING):
+  Jika produk diaplikasikan ke tubuh atau objek (misal: lipstik/lipcream di bibir, skincare di kulit, makeup di wajah, pembersih noda):
+  visual_prompt dan action HARUS secara eksplisit mendeskripsikan PERUBAHAN VISUAL / TRANSFER PIGMEN WARNA yang terjadi!
+  Contoh lipstik:
+  'visual_prompt': 'Extreme close-up of bare lips as lipstick glides across, visibly coating lips with rich vibrant [warna] pigment, showing clear before-and-after color transformation'
+  'action': 'The lipstick glides across bare lips, visibly depositing rich pigmented [warna] color in real time, instantly transforming bare lips into fully coated, glossy [warna] lips'
+  DILARANG KERAS hanya menulis 'mengoleskan lipstik' tanpa mendeskripsikan bibir yang berubah warna!
+- ATURAN MODE AUDIO:
+  - Jika audio 'asmr' atau 'musik': video ini adalah TANPA SUARA BICARA (NO VOICEOVER).
+    Karakter DILARANG berbicara atau menggerakkan mulut ke kamera! Bibir tetap tertutup rileks.
+    Aksi HANYA interaksi fisik produk (membuka kemasan, mengoleskan, mencium aroma, tersenyum puas).
+    Isi field 'narasi' dengan string KOSONG ("").
+  - Jika audio 'vo_en': tulis 'narasi' dalam Bahasa Inggris gaya UGC TikTok (max 15 kata).
+  - Jika audio 'vo' atau 'vo_id': tulis 'narasi' dalam Bahasa Indonesia gaya UGC santai (max 12 kata).
 - Beat 1 = hook penahan scroll. Beat terakhir = CTA beli (cek keranjang kuning / checkout sekarang).
 
 OUTPUT JSON SAJA:
 {"title": "judul video",
- "marketing_angle": "tagline catchy Bahasa Indonesia",
+ "marketing_angle": "tagline catchy",
  "selling_points": ["poin 1", "poin 2", "poin 3", "poin 4"],
- "target_audience": "target penonton Bahasa Indonesia",
- "objective": "tujuan video Bahasa Indonesia, 1 kalimat",
+ "target_audience": "target penonton",
+ "objective": "tujuan video",
  "character_lock": "deskripsi karakter yang dikunci (Bahasa Inggris)",
  "scenes": [
    {"judul": "judul beat",
@@ -100,7 +130,7 @@ OUTPUT JSON SAJA:
     "visual_id": "deskripsi visual Bahasa Indonesia",
     "camera_id": "angle & gerakan kamera Bahasa Indonesia",
     "action_id": "aksi Bahasa Indonesia",
-    "narasi": "kalimat Bahasa Indonesia max 12 kata"}
+    "narasi": "kalimat max 12 kata (KOSONG jika asmr/musik)"}
  ]}"""
 
 
@@ -248,17 +278,20 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
                               vision_spec: dict = None) -> dict:
     total_segments = max(1, int(durasi) // 8)
     n_scene = max(2, total_segments * 2)
+    is_silent_audio = audio in ("asmr", "musik")
     user = (
         f"Produk: {produk}\nDeskripsi produk: {deskripsi}\n"
         f"Durasi total video: {durasi} detik ({total_segments} segmen @ 8 detik).\n"
         f"Tulis TEPAT {n_scene} beat cerita berurutan (2 beat per segmen 8 detik, masing-masing 4 detik).\n"
         f"PENTING: Alur cerita harus MAJU dan BERBEDA di setiap beat. DILARANG MENGULANG adegan/aksi yang sama!\n"
         f"Beat 1-2: Hook & pembuka dramatis memperkenalkan {produk}.\n"
-        + (f"Beat 3-4: Demonstrasi fungsi utama dan detail produk secara nyata.\n" if total_segments >= 2 else "")
+        + (f"Beat 3-4: Demonstrasi fungsi utama dan detail produk secara nyata (jika kosmetik/lipstik/skincare: deskripsikan hasil perubahan warna/tekstur nyata pada bibir/kulit!).\n" if total_segments >= 2 else "")
         + (f"Beat 5-6: Hasil memuaskan, variasi pemakaian, dan Call to Action beli di keranjang kuning.\n" if total_segments >= 3 else (f"Beat {n_scene}: Call to Action beli di keranjang kuning.\n" if total_segments == 1 else f"Beat 4: Call to Action beli di keranjang kuning.\n"))
         + f"Style visual: {style}. {STYLE_BOARD_GUIDE.get(style, '')} Framing: {FRAME_HINT.get(framing, '')}.\n"
         f"Mode audio: {AUDIO_LABEL.get(audio, audio)}.\n"
-        f"Product visual spec: output product_spec dict dengan keys: color, material, shape, size, count, key_features."
+        + ("PERINGATAN KHUSUS ASMR/MUSIK: Video ini TANPA SUARA BICARA (NO VOICEOVER). Karakter DILARANG berbicara ke kamera. Bibir tertutup santai, fokus suara produk foley. Kosongkan narasi.\n" if is_silent_audio else "")
+        + ("PERINGATAN VO ENGLISH: Skrip narasi dan voiceover harus dalam Bahasa Inggris natural.\n" if audio == "vo_en" else "")
+        + f"Product visual spec: output product_spec dict dengan keys: color, material, shape, size, count, key_features."
     )
     raw = _call_omni(SYSTEM_BOARD, user)
     raw = re.sub(r"^```[a-z]*\n?", "", raw.strip())
@@ -283,6 +316,8 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
             sc["camera_id"] = "Close up"
         if not sc["camera_en"]:
             sc["camera_en"] = "Close-up, static camera, perfectly steady"
+        if is_silent_audio:
+            sc["narasi"] = ""
     spec_text = build_product_spec(produk, deskripsi, board.get("product_spec") or {}, vision_spec)
     board["product_spec_text"] = spec_text
     return board
@@ -322,6 +357,7 @@ def build_frame_prompt(sc: dict, spec_text: str = "",
     if spec_text:
         parts.append(f"Product fidelity: {spec_text}")
     parts.append(ANATOMY_LOCK)
+    parts.append(APPLICATION_EFFECT_LOCK)
     parts.append("Clean composition, professional studio lighting, centered subject, crystal sharp details, no text, no watermark.")
     return "\n".join(parts)
 
@@ -405,9 +441,16 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
                 f"- Shot {shot_num} ({shot_start}-{shot_end}s in this segment): {vis}. Action: {act}. Camera: {cam}."
             )
 
-        if audio_desc:
+        if audio in ("asmr", "musik", "asmr_vo"):
+            parts.append(
+                "SILENT VOCALS LOCK: Strictly zero human speech, zero singing, zero talking. "
+                "The subject does NOT speak and keeps their mouth closed or relaxed. "
+                "Audio contains NO voiceover, only ambient product foley sounds."
+            )
+        elif audio_desc:
             parts.append(audio_desc)
 
+        parts.append(APPLICATION_EFFECT_LOCK)
         parts.append(ANATOMY_LOCK)
         parts.append(MOTION_LOCK)
         parts.append("Final result: Razor-sharp product focus, seamless motion, zero visual artifacts, television commercial grade.")
@@ -646,5 +689,5 @@ def build_scene_prompt(visual_prompt: str, spec_text: str = "") -> str:
     parts = [visual_prompt or ""]
     if spec_text:
         parts.append(spec_text)
-    parts += [CONSISTENCY_LOCK, ANOMALY_LOCK]
+    parts += [CONSISTENCY_LOCK, APPLICATION_EFFECT_LOCK, ANOMALY_LOCK]
     return "\n".join(parts)

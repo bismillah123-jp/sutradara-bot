@@ -52,8 +52,10 @@ sessions = {}
 
 STYLES = {"ugc": "\U0001F4F1 UGC Natural", "sinematik": "\U0001F3AC Sinematik",
           "studio": "\u2728 Studio Iklan Clean", "aesthetic": "\U0001F338 Aesthetic Pastel"}
-AUDIOS = {"vo": "\U0001F399\ufe0f Voice Over Indonesia", "asmr": "\U0001F3A7 ASMR (Suara Produk)",
-          "musik": "\U0001F3B5 Musik Aja",
+AUDIOS = {"vo": "\U0001F399\ufe0f Voice Over Indonesia",
+          "vo_en": "\U0001F399\ufe0f Voice Over English",
+          "asmr": "\U0001F3A7 ASMR (Suara Produk, Tanpa VO)",
+          "musik": "\U0001F3B5 Musik Aja (Tanpa VO)",
           "asmr_vo": "\U0001F3A7\U0001F399\ufe0f ASMR + VO ElevenLabs (Edit Manual)"}
 FRAMES = {"fullbody": "\U0001F9CD Full Body", "setengah": "\U0001F464 Setengah Badan",
           "tangan": "\u270b Tangan Aja", "produk": "\U0001F4E6 Produk Aja",
@@ -156,7 +158,7 @@ def _parse_auto_json(raw: str):
 
 async def _minta_auto(produk: str, deskripsi: str):
     user = (f"Produk: {produk} - {deskripsi}. Pilihkan yang paling cocok: "
-            "style [ugc/sinematik/studio/aesthetic], audio [vo/asmr/musik/asmr_vo], "
+            "style [ugc/sinematik/studio/aesthetic], audio [vo/vo_en/asmr/musik/asmr_vo], "
             "framing [full/setengah/tangan/produk/flatlay]. "
             "Jawab JSON: {style, audio, framing, alasan_singkat}.")
     for _ in range(3):
