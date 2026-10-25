@@ -357,7 +357,7 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
         f"Produk: {produk}\nDeskripsi produk: {deskripsi}\n"
         f"Durasi total video: {durasi} detik. Tulis TEPAT {n_scene} beat.\n"
         f"Style visual: {style}. {STYLE_BOARD_GUIDE.get(style, "")} Framing: {FRAME_HINT.get(framing, "")}. "
-        f"Mode audio: {AUDIO_LABEL.get(audio, audio)}."+chr(92)+"n"
+        f"Mode audio: {AUDIO_LABEL.get(audio, audio)}.\n"
         f"Product visual spec: output product_spec dict."
         f"Keys: color, material, shape, size, count, key_features."
         f"NEVER invent. If unknown write not specified."
@@ -537,7 +537,7 @@ _ID_MATERIALS = [
 def _extract_color_id(text: str) -> str:
     t = (text or "").lower()
     for indo, eng, hx in _ID_COLORS:
-        if re.search(r"\\b" + re.escape(indo) + r"\\b", t):
+        if re.search(r"\b" + re.escape(indo) + r"\b", t):
             return f"{eng} ({hx})" if hx else eng
     return ""
 
@@ -546,7 +546,7 @@ def _extract_material_id(text: str) -> str:
     t = (text or "").lower()
     found = []
     for indo, eng in _ID_MATERIALS:
-        if re.search(r"\\b" + re.escape(indo) + r"\\b", t):
+        if re.search(r"\b" + re.escape(indo) + r"\b", t):
             if eng not in found:
                 found.append(eng)
     return ", ".join(found)
@@ -554,14 +554,14 @@ def _extract_material_id(text: str) -> str:
 
 def _extract_count_id(text: str) -> str:
     t = (text or "").lower()
-    m = re.search(r"(?:isi|jumlah|terdiri dari|berisi)\\s*(\\d+)", t)
+    m = re.search(r"(?:isi|jumlah|terdiri dari|berisi)\s*(\d+)", t)
     if m:
         return m.group(1) + " units"
-    m = re.search(r"(\\d+)\\s*(pcs|buah|unit|pasang|set|pak|botol|kaleng|sachet|bungkus)", t)
+    m = re.search(r"(\d+)\s*(pcs|buah|unit|pasang|set|pak|botol|kaleng|sachet|bungkus)", t)
     if m:
         n = m.group(1)
         return n + (" pairs" if m.group(2) == "pasang" else " units")
-    if re.search(r"\\bsepasang\\b", t):
+    if re.search(r"\bsepasang\b", t):
         return "1 pair (2 units)"
     return ""
 
@@ -617,7 +617,7 @@ def analyze_product_visual_spec(image_path: str) -> dict:
             "temperature": 0.1,
         }
         req = urllib.request.Request(
-            OMNI_URL, data=json.dumps(payload).encode(),
+            OMNI_BASE + "/chat/completions", data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json",
                      "Authorization": f"Bearer {OMNI_KEY}"},
             method="POST")
@@ -687,4 +687,4 @@ def build_scene_prompt(visual_prompt: str, spec_text: str = "") -> str:
         parts.append(spec_text)
     parts += [GOLDEN_REF_LINE, SCENE_CHECKLIST_BLOCK, USAGE_DIRECTION_BLOCK,
               CONSISTENCY_LOCK, ANOMALY_LOCK]
-    return "\\n".join(parts)
+    return "\n".join(parts)

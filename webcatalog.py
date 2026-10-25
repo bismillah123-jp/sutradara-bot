@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import urllib.parse
 import urllib.request
 
@@ -80,7 +81,7 @@ def gambar_dari_hasil(res: dict) -> list[str]:
             seen.add(u)
             final.append(u)
     return final
-import tempfile
+
 # ---------------------------------------------------------------------------
 # Google Custom Search (sumber UTAMA pencarian katalog web).
 # Kredensial diisi user via /setgoogle <api_key> <cx>, disimpan di
@@ -192,7 +193,7 @@ def _kandidat_dari_tinyfish(nama, deskripsi, maks):
     queries = [nama, nama + " shopee", nama + " tokopedia"]
     hasil, sudah = [], set()
     for title in queries:
-        res = _search(title, key) or []
+        res = _search(title) or []
         urls = [(r.get("title"), r.get("url")) for r in res if r.get("url")]
         urls = urls[:6]
         if not urls:
@@ -243,6 +244,49 @@ def cari_kandidat_katalog(nama: str, deskripsi: str = "", maks_url: int = 6):
     return t
 
 
+SYSTEM_BEDAH = """Kamu analis e-commerce Indonesia. Dari isi halaman web berikut, ekstrak info produknya.
+
+ATURAN:
+- Kalau ini halaman PRODUK (ada nama produk / harga / deskripsi), ekstrak seakurat mungkin.
+- Kalau BUKAN halaman produk (artikel, homepage, halaman error/login, captcha), balas {"error": "jelaskan singkat kenapa"}.
+- image_url: pilih SATU URL gambar produk utama dari DAFTAR GAMBAR yang diberikan — yang paling terlihat seperti foto produk asli (bukan logo/banner/ikon).
+
+OUTPUT JSON SAJA, tanpa penjelasan:
+{"nama": "nama produk", "deskripsi": "2-3 kalimat: bentuk, bahan, fungsi, keunggulan", "harga": "mis. Rp 59.000 (kosongkan kalau tidak ada)", "image_url": "URL gambar produk utama"}"""
+
+
+def _fetch_og_direct(url: str):
+    """Fallback kalau TinyFish gagal: fetch HTML langsung, ambil OG tags."""
+    try:
+        req = urllib.request.Request(url, headers={**_UA, "Accept": "text/html"})
+        html = urllib.request.urlopen(req, timeout=25).read(600000).decode("utf-8", errors="ignore")
+    except Exception:
+        return None
+    low = html.lower()
+    def _meta(prop):
+        for q in ('"', "'"):
+            key = "property=" + q + "og:" + prop + q
+            i = low.find(key)
+            if i < 0:
+                continue
+            tag = html[i:html.find(">", i)]
+            ck = "content=" + q
+            j = tag.lower().find(ck)
+            if j >= 0:
+                k = j + len(ck)
+                e = tag.find(q, k)
+                if e > k:
+                    return tag[k:e].strip()
+        return ""
+    title = _meta("title")
+    desc = _meta("description")
+    m = _OG_RE.search(html)
+    img = (m.group(1).strip() if m else None) or _meta("image")
+    if not title and not img:
+        return None
+    return {"title": title, "description": desc, "image": img, "url": url}
+
+
 def bedah_link(url: str) -> dict:
     """Fetch satu link produk -> LLM ekstrak {nama, deskripsi, harga, image_url}."""
     results, _ = tinyfish_fetch([url])
@@ -252,11 +296,11 @@ def bedah_link(url: str) -> dict:
         og_fb = _fetch_og_direct(url)
         if not og_fb:
             raise RuntimeError("halaman tidak bisa diambil (fetch gagal)")
-    r = {"title": og_fb["title"], "description": og_fb["description"], "text": "", "final_url": url}
+        r = {"title": og_fb["title"], "description": og_fb["description"], "text": "", "final_url": url}
     teks = r.get("text") or ""
     if isinstance(teks, dict):
         teks = ""
-    imgs = [og_fb["image"]] if og_fb and og_fb["image"] else gambar_dari_hasil(r)[:12]
+    imgs = [og_fb["image"]] if (og_fb and og_fb.get("image")) else gambar_dari_hasil(r)[:12]
     user = (f"URL: {r.get('final_url') or url}\n"
             f"Judul halaman: {r.get('title', '')}\n"
             f"Deskripsi meta: {r.get('description', '')}\n\n"

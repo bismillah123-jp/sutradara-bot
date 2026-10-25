@@ -136,7 +136,7 @@ def _fetch_og_direct(url: str):
         return None
     low = html.lower()
     def _meta(prop):
-        for q in (",'):
+        for q in ('"', "'"):
             key = "property=" + q + "og:" + prop + q
             i = low.find(key)
             if i < 0:

@@ -577,9 +577,11 @@ def _mask_email(email):
 
 
 def flow2api_kredit():
-    """Ambil info kredit flow2api lokal."""
-    """Returns dict(total, n_akun, per_akun=[(email_masked, kredit)]) atau None"""
-    """jika tidak ada angka valid (jangan ngarang angka)."""
+    """Ambil info kredit flow2api lokal.
+
+    Returns dict(total, n_akun, per_akun=[(email_masked, kredit)]) atau None
+    jika tidak ada angka valid (jangan ngarang angka).
+    """
     base = os.environ.get("FLOW2API_BASE", "http://127.0.0.1:8090").rstrip("/")
     db_path = os.environ.get("FLOW2API_DB", FLOW2API_DB_DEFAULT)
     total, n_akun, per_akun = None, 0, []
@@ -616,7 +618,8 @@ def flow2api_kredit():
 
 def get_statistik():
     """Kumpulkan statistik bisnis untuk /dasbor. Returns dict."""
-    users = users_db or {}
+    users = {k: v for k, v in (users_db or {}).items()
+             if not k.startswith("_") and isinstance(v, dict)}
     total_user = len(users)
     st = _stats()
     total_generate = int(st.get("total_generate", 0) or 0)

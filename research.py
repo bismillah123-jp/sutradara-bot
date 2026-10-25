@@ -19,7 +19,8 @@ def _tinyfish_key() -> str:
         return k
     for p in KEY_FILES:
         try:
-            d = json.load(open(p))
+            with open(p) as fh:
+                d = json.load(fh)
             for f in ("api_key", "apiKey"):
                 if d.get(f):
                     return d[f]

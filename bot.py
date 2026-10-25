@@ -68,6 +68,10 @@ def new_session(uid: int) -> dict:
     return s
 
 
+def get_session(uid: int) -> dict:
+    return sessions.get(uid) or new_session(uid)
+
+
 def allowed(update: Update) -> bool:
     if not ALLOWED_USERS:
         return True
@@ -170,7 +174,7 @@ def _teks_konfirmasi(s: dict, uid: int) -> str:
     if is_admin(uid) or billing.is_unlimited(uid):
         harga = "Gratis"
     else:
-        harga = "Rp " + billing.rp(billing.harga_reguler())
+        harga = "Rp " + billing.rp(billing.harga_tier_untuk(uid, "reguler"))
     baris = [
         "\U0001F4CB Konfirmasi Video",
         "Produk: " + str(s.get("produk")),
@@ -539,8 +543,10 @@ async def menu_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     if await tolak_kalau_ban(update, context):
         return
-    s = sessions[q.from_user.id]
-    if q.data == chr(109)+chr(101)+chr(110)+chr(117)+chr(58)+chr(103)+chr(101)+chr(110)+chr(101)+chr(114)+chr(97)+chr(116)+chr(101):
+    s = sessions.get(q.from_user.id)
+    if s is None:
+        return ConversationHandler.END
+    if q.data == "menu:generate":
         await bersihkan_progress_basi(context, q.message.chat_id, s, lewati_id=q.message.message_id)
     s["status_id"] = q.message.message_id
     # FASE 4: tombol menu utama
@@ -591,15 +597,15 @@ async def menu_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if q.data=="menu:manual":
         if await _ck(q,q.from_user.id):
             return MENU
-    await q.edit_message_text(
-        ft("\u270d\ufe0f *Mode Manual*\n\nSiap! Kirim *nama produk* yang mau lo buat videonya:"),
-        parse_mode="Markdown", reply_markup=kb_back_only())
-    return MANUAL_NAMA
+        await q.edit_message_text(
+            ft("\u270d\ufe0f *Mode Manual*\n\nSiap! Kirim *nama produk* yang mau lo buat videonya:"),
+            parse_mode="Markdown", reply_markup=kb_back_only())
+        return MANUAL_NAMA
 
 async def riset_kategori(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if _mode_admin_aktif(update) or await tolak_kalau_ban(update, context):
         return None
-    s = sessions[update.effective_user.id]
+    s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
     kat = update.message.text.strip()
     if kat.lower() == "bebas":
@@ -638,7 +644,9 @@ async def riset_kategori(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def produk_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = sessions.get(q.from_user.id)
+    if s is None:
+        return ConversationHandler.END
     s["status_id"] = q.message.message_id
     k = s["kandidat"][int(q.data.split(":")[1])]
     s["produk"] = k["nama"]
@@ -652,7 +660,7 @@ async def produk_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def manual_nama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if _mode_admin_aktif(update) or await tolak_kalau_ban(update, context):
         return None
-    s = sessions[update.effective_user.id]
+    s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
     teks = update.message.text.strip()
     if teks.lower().startswith(("http://", "https://")):
@@ -671,7 +679,7 @@ async def manual_nama(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def manual_deskripsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if _mode_admin_aktif(update) or await tolak_kalau_ban(update, context):
         return None
-    s = sessions[update.effective_user.id]
+    s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
     teks = update.message.text.strip()
     if teks.lower().startswith(("http://", "https://")):
@@ -727,9 +735,10 @@ async def manual_link(update: Update, context: ContextTypes.DEFAULT_TYPE,
                + (f"\U0001F4B0 {info['harga']}\n" if info.get("harga") else "")
                + f"\U0001F4DD {s['deskripsi']}\n")
     if s.get("katalog"):
-        await context.bot.send_photo(
-            chat_id, photo=open(s["katalog"], "rb"),
-            caption=ft("\U0001F5BC\ufe0f Gambar produknya udah gw ambil dari linknya \U0001F446"))
+        with open(s["katalog"], "rb") as kf:
+            await context.bot.send_photo(
+                chat_id, photo=kf,
+                caption=ft("\U0001F5BC\ufe0f Gambar produknya udah gw ambil dari linknya \U0001F446"))
         ringkas += "\n\U0001F5BC\ufe0f Gambar katalog udah aman \u2014 nanti bisa lo ganti juga di langkah katalog."
     else:
         ringkas += "\n\U0001F5BC\ufe0f Gambarnya nggak ketemu di linknya \u2014 nanti pilih katalog di langkah foto ya."
@@ -741,7 +750,7 @@ async def manual_link(update: Update, context: ContextTypes.DEFAULT_TYPE,
 async def style_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     s["style"] = q.data.split(":")[1]
     teks, kb = _ui_audio(s)
@@ -751,7 +760,7 @@ async def style_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def audio_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     s["audio"] = q.data.split(":")[1]
     teks, kb = _ui_frame(s)
@@ -761,7 +770,7 @@ async def audio_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def frame_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     s["framing"] = q.data.split(":")[1]
     teks, kb = _ui_durasi(s)
@@ -771,7 +780,7 @@ async def frame_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def durasi_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     s["durasi"] = int(q.data.split(":")[1])
     if s.pop("dari_konfirmasi", None):
@@ -790,7 +799,7 @@ def _siapkan_workdir(s: dict) -> Path:
 
 
 async def foto_diterima(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    s = sessions[update.effective_user.id]
+    s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
     if not await _boleh_masuk_produksi(update, context, s, chat_id):
         return None
@@ -808,7 +817,7 @@ async def foto_ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tombol Generate Katalog AI -> tampilkan disclaimer dulu."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("\u2705 Lanjut, Generate", callback_data="foto:ai_ok")],
@@ -822,7 +831,7 @@ async def foto_ai_ok(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User setuju disclaimer -> generate katalog AI."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     if not await _boleh_masuk_produksi(update, context, s, q.message.chat_id):
         return None
@@ -835,7 +844,7 @@ async def foto_kembali_opsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kembali dari disclaimer ke opsi katalog."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     await q.edit_message_text(ft(teks_opsi_foto(s)), parse_mode="Markdown",
                               reply_markup=kb_opsi_foto(s))
@@ -851,7 +860,7 @@ async def foto_keep(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pake katalog yang udah ada dari link -> langsung produksi."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     chat_id = q.message.chat_id
     if not await _boleh_masuk_produksi(update, context, s, chat_id):
         return None
@@ -865,7 +874,7 @@ async def foto_web(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cari katalog yang mirip di web (Shopee/Tokopedia/dll)."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     chat_id = q.message.chat_id
     s["status_id"] = q.message.message_id
     await q.edit_message_text(
@@ -883,7 +892,7 @@ async def foto_web(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await say(context, chat_id, s,
                   f"\U0001F605 Gagal nyari di web ({e}).\n\n" + teks_opsi_foto(s),
                   parse_mode="Markdown", reply_markup=kb_opsi_foto(s))
-        return
+        return FOTO
     finally:
         stop_web.set()
     s["webcands"] = cands
@@ -896,7 +905,7 @@ async def foto_web(update: Update, context: ContextTypes.DEFAULT_TYPE):
                   reply_markup=InlineKeyboardMarkup([[
                       InlineKeyboardButton("Upload Manual", callback_data="webcat:upload"),
                       InlineKeyboardButton("Generate AI", callback_data="foto:ai")]]))
-        return
+        return FOTO
     await kirim_kandidat_web(context, chat_id, s)
 
 
@@ -961,11 +970,12 @@ async def kirim_kandidat_web(context: ContextTypes.DEFAULT_TYPE,
         [InlineKeyboardButton("\u274c Batal", callback_data="webcat:cancel"),
          InlineKeyboardButton("\u2b05\ufe0f Kembali", callback_data="webcat:back")],
     ])
-    m = await context.bot.send_photo(
-        chat_id, photo=open(dest, "rb"),
-        caption=ft(f"\U0001F5BC\ufe0f *Kandidat {idx + 1}/{len(cands)}*\n"
-                f"\U0001F4CD {(c['title'] or '-')[:60]}\n\U0001F517 {c['domain']}"),
-        parse_mode="Markdown", reply_markup=kb)
+    with open(dest, "rb") as df:
+        m = await context.bot.send_photo(
+            chat_id, photo=df,
+            caption=ft(f"\U0001F5BC\ufe0f *Kandidat {idx + 1}/{len(cands)}*\n"
+                    f"\U0001F4CD {(c['title'] or '-')[:60]}\n\U0001F517 {c['domain']}"),
+            parse_mode="Markdown", reply_markup=kb)
     s["webcand_msg"] = m.message_id
 
 
@@ -973,7 +983,7 @@ async def webcat_use(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User setuju kandidat -> pake sebagai katalog, lanjut produksi."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     chat_id = q.message.chat_id
     if not await _boleh_masuk_produksi(update, context, s, chat_id):
         return None
@@ -994,7 +1004,7 @@ async def webcat_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cari lagi -> kandidat berikutnya."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["webidx"] = s.get("webidx", 0) + 1
     await kirim_kandidat_web(context, q.message.chat_id, s,
                              hapus_msg_id=q.message.message_id)
@@ -1004,7 +1014,7 @@ async def webcat_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Fallback 5x gagal: user pilih Upload Manual -> minta kirim foto langsung."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     chat_id = q.message.chat_id
     await say(context, chat_id, s,
         "Silakan upload foto katalog produk langsung ke chat ini.",
@@ -1015,7 +1025,7 @@ async def webcat_batal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Batal / Kembali dari kandidat web -> opsi katalog."""
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     chat_id = q.message.chat_id
     try:
         await context.bot.delete_message(chat_id=chat_id,
@@ -1129,8 +1139,9 @@ async def produksi_awal(context, chat_id: int, s: dict):
                 p = workdir / "katalog.jpg"
                 p.write_bytes(img)
                 s["katalog"] = str(p)
-            await context.bot.send_photo(chat_id, photo=open(s["katalog"], "rb"),
-                                         caption=ft("Gambar katalognya nih"))
+            with open(s["katalog"], "rb") as kf:
+                await context.bot.send_photo(chat_id, photo=kf,
+                                             caption=ft("Gambar katalognya nih"))
 
             # Deteksi multi-varian katalog SEBELUM enhance HD.
             # Single-varian / deteksi gagal -> lanjut seperti biasa.
@@ -1172,8 +1183,9 @@ async def produksi_awal(context, chat_id: int, s: dict):
             p = workdir / "katalog_hd.jpg"
             p.write_bytes(img)
             s["katalog_hd"] = str(p)
-            await context.bot.send_photo(chat_id, photo=open(p, "rb"),
-                                         caption=ft("Katalog HD-nya, lebih tajam"))
+            with open(p, "rb") as hdf:
+                await context.bot.send_photo(chat_id, photo=hdf,
+                                             caption=ft("Katalog HD-nya, lebih tajam"))
 
             await say(context, chat_id, s, "Lagi nyusun storyboard...", fresh=True)
             stop_sb = asyncio.Event()
@@ -1213,28 +1225,30 @@ async def produksi_awal(context, chat_id: int, s: dict):
             s["frames"] = frames
 
             sheet_path = workdir / "storyboard_sheet.jpg"
+            hero_katalog = s.get("katalog_hd") or s.get("katalog")
             compose_sheet(board, s["produk"], "Promosi", s["durasi"],
-                          s["katalog_hd"], frames, str(sheet_path))
+                          hero_katalog, frames, str(sheet_path))
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("\U0001F680 Gas Bikin Video", callback_data="gas:video")],
                 [InlineKeyboardButton("\u274c Batal", callback_data="gas:batal")],
             ])
-            await context.bot.send_photo(
-                chat_id, photo=open(sheet_path, "rb"),
-                caption=ft(f"Storyboard: {board['title']}\nCek dulu ya - kalau oke, tap Gas Bikin Video."),
-                reply_markup=kb)
+            with open(sheet_path, "rb") as sf:
+                await context.bot.send_photo(
+                    chat_id, photo=sf,
+                    caption=ft(f"Storyboard: {board['title']}\nCek dulu ya - kalau oke, tap Gas Bikin Video."),
+                    reply_markup=kb)
             await say(context, chat_id, s,
                       "Storyboard-nya udah jadi (di atas). Kalau oke, tap tombol Gas Bikin Video di sheet-nya ya.", fresh=True)
         except Exception as e:
             log.exception("produksi_awal gagal")
             kb_gagal = InlineKeyboardMarkup([
-            [InlineKeyboardButton("\U0001F504 Coba Lagi", callback_data="gas:retry")],
-            [InlineKeyboardButton("\U0001F3E0 Menu Utama", callback_data="gas:menu")],
-        ])
-        await say(context, chat_id, s,
-                  "\u26a0\ufe0f Waduh, gagal di tengah jalan (timed out).\n\n"
-                  "Biasanya karena server AI lagi lambat. Mau coba lagi?",
-                  reply_markup=kb_gagal)
+                [InlineKeyboardButton("\U0001F504 Coba Lagi", callback_data="gas:retry")],
+                [InlineKeyboardButton("\U0001F3E0 Menu Utama", callback_data="gas:menu")],
+            ])
+            await say(context, chat_id, s,
+                      "\u26a0\ufe0f Waduh, gagal di tengah jalan (timed out).\n\n"
+                      "Biasanya karena server AI lagi lambat. Mau coba lagi?",
+                      reply_markup=kb_gagal)
 
 
 async def gas_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1265,7 +1279,7 @@ async def _progress_updater(q, expected_sec, stop_event):
         pct = min(90, int(elapsed / expected_sec * 100))
         bar = chr(9608) * (pct // 10) + chr(9617) * (10 - pct // 10)
         try:
-            await q.edit_message_text(ft(chr(0x1F3AC) + chr(32) + chr(66) + chr(105) + chr(107) + chr(105) + chr(110) + chr(32) + chr(118) + chr(105) + chr(100) + chr(101) + chr(111) + chr(46) + chr(46) + chr(46) + chr(32) + str(pct) + chr(37) + chr(10) + bar))
+            await q.edit_message_text(ft(f"🎬 Bikin video... {pct}%\n{bar}"))
         except Exception:
             pass
 
@@ -1338,9 +1352,9 @@ async def gas_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if q.data.startswith("gas:tier:"):
         tier = q.data.split(":")[2]
+        _seg = max(1, int(s.get("durasi", 8)) // 8)
         if not(is_admin(uid) or billing.is_unlimited(uid)):
-            _seg=max(1,int(s.get("durasi",8))//8)
-        if billing.get_saldo(uid)<billing.harga_video_segmen(uid,tier,_seg):
+            if billing.get_saldo(uid)<billing.harga_video_segmen(uid,tier,_seg):
                 kb=InlineKeyboardMarkup([
                 [InlineKeyboardButton(chr(0x1F4B3)+" Topup",callback_data="menu:topup")],
                 [InlineKeyboardButton(chr(0x1F3E0)+" Menu",callback_data="menu:utama")]])
@@ -1484,8 +1498,9 @@ async def _proses_antrean(app, job):
             out.write_bytes(mp4)
             s["video_task"] = None
             await say(app, chat_id, s, "\U0001F389 Videonya jadi! Nih hasilnya:")
-            await app.bot.send_video(chat_id, video=open(out, "rb"),
-                                     caption=ft("\U0001F3AC " + board["title"]))
+            with open(out, "rb") as vf:
+                await app.bot.send_video(chat_id, video=vf,
+                                         caption=ft("\U0001F3AC " + board["title"]))
             billing.catat_generate(uid)  # FASE 3: catat video sukses
             billing.cairkan_bonus_referal(uid)  # FASE 4: cairkan bonus referal pending (video pertama)
             billing.catat_generate_user(uid)  # FASE 4: hitung video sukses per user
@@ -1499,49 +1514,49 @@ async def _proses_antrean(app, job):
                     await say(app, chat_id, s,
                               "Rp %s kepotong buat video ini. Sisa saldo: Rp %s."
                               % (billing.rp(bill_harga), billing.rp(billing.get_saldo(uid))))
-                if s["audio"] == "asmr_vo":
-                    scenes = board["scenes"]
-                    seg = max(1, s["durasi"]) // max(1, len(scenes))
-                    lines, t = [], 0
-                    for i, sc in enumerate(scenes):
-                        t2 = s["durasi"] if i == len(scenes) - 1 else t + seg
-                        if sc.get("narasi"):
-                            lines.append("Scene %d (%d-%d dtk): %s" % (i + 1, t, t2, sc["narasi"]))
-                        t = t2
-                    full = " ".join(sc["narasi"] for sc in scenes if sc.get("narasi"))
-                    await app.bot.send_message(
-                        chat_id,
-                        ft("\U0001F399\ufe0f *Skrip VO buat ElevenLabs*\n\n"
-                           "Video di atas suaranya ASMR aja \u2014 VO-nya lo pasang manual "
-                           "pas edit, pake skrip ini:\n\n"
-                           "\U0001F4CB *Teks lengkap* \u2014 tinggal copy-paste ke ElevenLabs:\n"
-                           "```\n" + full + "\n```\n\n"
-                           "\u23f1\ufe0f *Rincian per scene:*\n" + "\n".join(lines) + "\n\n"
-                           "Cara pakai: buka elevenlabs.io \u2192 Text to Speech \u2192 paste teks "
-                           "lengkapnya \u2192 pilih voice Bahasa Indonesia \u2192 generate \u2192 "
-                           "download MP3-nya \u2192 gabungin ke video pas ngedit (timing-nya "
-                           "ikut rincian per scene di atas)."),
-                        parse_mode="Markdown")
-                # Caption + hashtag: riset dulu dari tren terkini, kirim di tiap video jadi
+            if s.get("audio") == "asmr_vo":
+                scenes = board["scenes"]
+                seg = max(1, s["durasi"]) // max(1, len(scenes))
+                lines, t = [], 0
+                for i, sc in enumerate(scenes):
+                    t2 = s["durasi"] if i == len(scenes) - 1 else t + seg
+                    if sc.get("narasi"):
+                        lines.append("Scene %d (%d-%d dtk): %s" % (i + 1, t, t2, sc["narasi"]))
+                    t = t2
+                full = " ".join(sc["narasi"] for sc in scenes if sc.get("narasi"))
+                await app.bot.send_message(
+                    chat_id,
+                    ft("\U0001F399\ufe0f *Skrip VO buat ElevenLabs*\n\n"
+                       "Video di atas suaranya ASMR aja \u2014 VO-nya lo pasang manual "
+                       "pas edit, pake skrip ini:\n\n"
+                       "\U0001F4CB *Teks lengkap* \u2014 tinggal copy-paste ke ElevenLabs:\n"
+                       "```\n" + full + "\n```\n\n"
+                       "\u23f1\ufe0f *Rincian per scene:*\n" + "\n".join(lines) + "\n\n"
+                       "Cara pakai: buka elevenlabs.io \u2192 Text to Speech \u2192 paste teks "
+                       "lengkapnya \u2192 pilih voice Bahasa Indonesia \u2192 generate \u2192 "
+                       "download MP3-nya \u2192 gabungin ke video pas ngedit (timing-nya "
+                       "ikut rincian per scene di atas)."),
+                    parse_mode="Markdown")
+            # Caption + hashtag: riset dulu dari tren terkini, kirim di tiap video jadi
+            await say(app, chat_id, s,
+                      "\U0001F4DD Videonya udah jadi! Bentar, gw risetin caption + hashtag yang pas dulu...")
+            try:
+                ch = await asyncio.to_thread(riset_caption, s["produk"],
+                                             s["deskripsi"])
+                isi = ch["caption"] + "\n\n" + " ".join(ch["hashtags"])
+                await app.bot.send_message(
+                    chat_id,
+                    ft("\U0001F4DD *Caption + hashtag siap posting*\n"
+                       "Tinggal copy-paste ke TikTok ya \U0001F447\n"
+                       "\n```\n" + isi + "\n```\n"),
+                    parse_mode="Markdown")
                 await say(app, chat_id, s,
-                          "\U0001F4DD Videonya udah jadi! Bentar, gw risetin caption + hashtag yang pas dulu...")
-                try:
-                    ch = await asyncio.to_thread(riset_caption, s["produk"],
-                                                 s["deskripsi"])
-                    isi = ch["caption"] + "\n\n" + " ".join(ch["hashtags"])
-                    await app.bot.send_message(
-                        chat_id,
-                        ft("\U0001F4DD *Caption + hashtag siap posting*\n"
-                           "Tinggal copy-paste ke TikTok ya \U0001F447\n"
-                           "\n```\n" + isi + "\n```\n"),
-                        parse_mode="Markdown")
-                    await say(app, chat_id, s,
-                              "\u2705 Beres semua! Videonya di atas \U0001F446 caption + hashtag tinggal copy. "
-                              "Mau bikin lagi? /start aja \U0001F680")
-                except Exception:
-                    log.exception("riset caption gagal")
-                    await say(app, chat_id, s,
-                              "\U0001F605 Caption-nya gagal gw riset, tapi videonya udah jadi di atas \U0001F446")
+                          "\u2705 Beres semua! Videonya di atas \U0001F446 caption + hashtag tinggal copy. "
+                          "Mau bikin lagi? /start aja \U0001F680")
+            except Exception:
+                log.exception("riset caption gagal")
+                await say(app, chat_id, s,
+                          "\U0001F605 Caption-nya gagal gw riset, tapi videonya udah jadi di atas \U0001F446")
         except asyncio.CancelledError:
             s["video_task"] = None
             await say(app, chat_id, s, "\u274c\ufe0f Pembuatan video udah dibatalkan.")
@@ -1576,13 +1591,13 @@ async def _ke_menu(q, s):
 async def back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    return await _ke_menu(q, sessions[q.from_user.id])
+    return await _ke_menu(q, get_session(q.from_user.id))
 
 
 async def back_dari_produk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     await q.edit_message_text(
         ft("Riset Otomatis\n\nMau riset kategori apa nih? Ketik aja kategorinya "
@@ -1594,7 +1609,7 @@ async def back_dari_produk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_desk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     await q.edit_message_text(ft("Mode Manual\n\nSiap! Kirim nama produk yang mau lo buat videonya:"),
                               reply_markup=kb_back_only())
@@ -1604,7 +1619,7 @@ async def back_dari_desk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     if s.pop("dari_konfirmasi", None):
         await _tampilkan_konfirmasi(update, context, s)
@@ -1625,7 +1640,7 @@ async def back_dari_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     if s.pop("dari_konfirmasi", None):
         await _tampilkan_konfirmasi(update, context, s)
@@ -1638,7 +1653,7 @@ async def back_dari_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_frame(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     if s.pop("dari_konfirmasi", None):
         await _tampilkan_konfirmasi(update, context, s)
@@ -1651,7 +1666,7 @@ async def back_dari_frame(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_durasi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     if s.pop("dari_konfirmasi", None):
         await _tampilkan_konfirmasi(update, context, s)
@@ -1664,7 +1679,7 @@ async def back_dari_durasi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_dari_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    s = sessions[q.from_user.id]
+    s = get_session(q.from_user.id)
     s["status_id"] = q.message.message_id
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("\u23f1\ufe0f 6 dtk", callback_data="dur:6"),
@@ -2065,7 +2080,7 @@ async def menu_utama_cb(update, context):
     await q.answer()
     if await tolak_kalau_ban(update, context):
         return
-    return await _ke_menu(q, sessions[q.from_user.id])
+    return await _ke_menu(q, get_session(q.from_user.id))
 
 
 async def menu_back_cb(update, context):
@@ -2077,7 +2092,7 @@ async def menu_back_cb(update, context):
     tujuan = context.user_data.get("menu_kembali_ke", "menu:utama")
     if tujuan == "menu:topup":
         return await _topup_tampil_nominal_menu(update, context)
-    return await _ke_menu(q, sessions[q.from_user.id])
+    return await _ke_menu(q, get_session(q.from_user.id))
 
 
 def _kb_topup_nominal_menu():
@@ -2363,20 +2378,6 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
               reply_markup=kb_batal, fresh=True)
 
 
-class _QShim:
-    """Pengganti callback query untuk _progress_updater di worker antrean."""
-
-    def __init__(self, bot, chat_id, message_id):
-        self._bot = bot
-        self._chat_id = chat_id
-        self._message_id = message_id
-
-    async def edit_message_text(self, text):
-        await self._bot.edit_message_text(chat_id=self._chat_id,
-                                          message_id=self._message_id,
-                                          text=text)
-
-
 async def komersial_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Admin: /komersial on|off - master switch fitur komersial.
     if not is_admin(update.effective_user.id):
@@ -2411,7 +2412,7 @@ async def dasbor_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kapan = time.strftime("%d-%m-%Y %H:%M", time.localtime())
     teks = (
         "\U0001F4CA DASBOR BISNIS\n"
-        "Mode komersial: %s" + chr(92) + "n"
+        "Mode komersial: %s\n"
         "\U0001F550 %s\n\n"
         "%s\n\n"
         "\U0001F465 USER: %d total\n"
@@ -2714,7 +2715,7 @@ async def set_terima(update, context):
                 reg, prio = _set_angka(parts[0]), _set_angka(parts[1])
                 if reg < 0 or prio < 0:
                     raise ValueError("negatif")
-                reg, prio = billing.set_harga(reg, prio)
+                reg, prio = billing.set_harga_tier(reg, prio)
                 catatan = ("Harga diubah: reguler Rp %s, prioritas Rp %s."
                            % (billing.rp(reg), billing.rp(prio)))
             elif key == "bonus":

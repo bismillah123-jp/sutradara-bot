@@ -65,7 +65,8 @@ def stitch_mp4(parts, out_path):
                        "concat_%d.txt" % os.getpid())
     with open(lst, "w") as f:
         for p in parts:
-            f.write("file " + p + "\n")
+            # Quote paths to handle spaces in filenames
+            f.write("file '" + p.replace("'", "'\\''") + "'\n")
     try:
         _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0",
               "-i", lst, "-c", "copy", out_path])

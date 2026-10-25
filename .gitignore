@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.tmp
+*.log
+.env
+users.json
+queue.json
+stats.json
+topups.json
+vouchers.json
+referrals.json
+billing_config.json
+work/
+data/

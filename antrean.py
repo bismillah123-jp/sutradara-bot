@@ -70,11 +70,13 @@ def ambil_berikutnya():
         tier_pilih = "prioritas"
     else:
         tier_pilih = "reguler"
-    idx = 0
+    idx = None
     for i, j in enumerate(q):
         if (j.get("tier") == "prioritas") == (tier_pilih == "prioritas"):
             idx = i
             break
+    if idx is None:
+        idx = 0  # fallback ke item pertama jika tier yang diinginkan tidak ada
     job = q.pop(idx)
     _fair_counter += 1
     _save(q)
