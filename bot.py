@@ -1170,9 +1170,9 @@ async def produksi_awal(context, chat_id: int, s: dict):
                             enhance_prompt = ENHANCE_PROMPT
                             if s.get("varian_terpilih"):
                                 enhance_prompt += (
-                                    chr(10) + chr(10)
-                                    + "Fokus HANYA pada varian: " + s["varian_terpilih"]
-                                    + ". Abaikan varian lain di gambar."
+                                    "\n\nFOCUS TARGET: Enhance ONLY the product variant: "
+                                    + str(s["varian_terpilih"])
+                                    + ". Isolate and focus on this specific variant, ignoring other items in the original image."
                                 )
 
                             img = await flow.generate_image(enhance_prompt, "9:16",
@@ -1219,6 +1219,7 @@ async def produksi_awal(context, chat_id: int, s: dict):
                     spec_text=board.get("product_spec_text", ""),
                     style=s.get("style", "sinematik"),
                     framing=s.get("framing", "tangan"),
+                    produk=s.get("produk", ""),
                 )
                 img = None
                 try:

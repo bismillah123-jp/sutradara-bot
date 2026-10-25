@@ -84,6 +84,139 @@ AUDIO_HINT = {
     "musik": "AUDIO: Upbeat trendy background music only. Zero human voice, no speech, no voiceover, silent vocals.",
 }
 
+def get_product_category(produk: str, deskripsi: str = "") -> str:
+    """Categorize product to apply specialized visual and physics directives."""
+    text = f"{produk or ''} {deskripsi or ''}".lower()
+
+    if any(k in text for k in (
+        "tws", "earphone", "earphones", "earbuds", "earbud", "headphone",
+        "headphones", "headset", "airpods", "in-ear", "handsfree"
+    )):
+        return "audio_tws"
+
+    if any(k in text for k in (
+        "lipstik", "lipstick", "lip cream", "lipcream", "lip tint", "liptint",
+        "lip balm", "lipbalm", "lip gloss", "lipgloss", "lip velvet", "eyeliner",
+        "mascara", "blush", "cushion", "bedak", "foundation", "eyeshadow"
+    )):
+        return "lipstick_makeup"
+
+    if any(k in text for k in (
+        "skincare", "serum", "moisturizer", "sunscreen", "toner", "facial wash",
+        "cleanser", "lotion", "essence", "ampoule", "body wash", "cream wajah"
+    )):
+        return "skincare"
+
+    if any(k in text for k in (
+        "masker", "sheet mask", "clay mask", "peel off mask", "masker wajah",
+        "masker komedo", "sleeping mask"
+    )):
+        return "mask_facial"
+
+    if any(k in text for k in (
+        "parfum", "perfume", "fragrance", "cologne", "eau de", "body mist",
+        "minyak wangi", "scent"
+    )):
+        return "perfume_fragrance"
+
+    if any(k in text for k in (
+        "hp", "handphone", "smartphone", "iphone", "samsung", "android",
+        "laptop", "tablet", "ipad", "macbook", "smartwatch"
+    )):
+        return "phone_gadget"
+
+    if any(k in text for k in (
+        "dapur", "pisau", "wajan", "panci", "blender", "air fryer", "mixer",
+        "juicer", "kompor", "rice cooker", "oven", "chopper", "tumbler",
+        "thermos", "spatula", "alat masak", "teko"
+    )):
+        return "kitchen_home"
+
+    if any(k in text for k in (
+        "baju", "kaos", "t-shirt", "kemeja", "jaket", "hoodie", "celana",
+        "rok", "dress", "tas", "totebag", "ransel", "dompet", "sepatu",
+        "sneakers", "sandal", "jam tangan", "hijab", "topi"
+    )):
+        return "fashion_apparel"
+
+    if any(k in text for k in (
+        "makanan", "minuman", "kopi", "coffee", "teh", "tea", "snack",
+        "biskuit", "cokelat", "roti", "mie", "sambal", "susu", "jus", "keripik"
+    )):
+        return "food_beverage"
+
+    return "general_product"
+
+
+CATEGORY_DIRECTIVES = {
+    "audio_tws": (
+        "TWS & AUDIO GADGET DIRECTIVE: The product is a pair of wireless earbuds and their matching charging case. "
+        "When shown in ears: each earbud fits naturally and securely inside the human ear concha with the stem pointing downward "
+        "along the jawline. When shown in case: earbuds rest precisely in magnetic charging slots with subtle pin contacts and LED light. "
+        "Zero floating earbuds, exactly 2 earbuds per set, no jewelry morphing."
+    ),
+    "phone_gadget": (
+        "SMARTPHONE & ELECTRONICS DIRECTIVE: Modern, ultra-sleek device chassis with realistic screen bezel and precision glass finish. "
+        "Hands grip the outer edges naturally without fingers clipping into the active display. "
+        "When display is on: displays crisp modern wallpaper or clean minimal interface, no gibberish text artifacts. "
+        "Rear camera module retains exact lens arrangement, glass reflections, and physical buttons."
+    ),
+    "kitchen_home": (
+        "KITCHEN & CULINARY DIRECTIVE: Solid countertop setting with realistic kitchen environment and natural lighting. "
+        "Appliances sit firmly on surfaces without floating. Blades/cutters stay strictly inside containers; "
+        "cutting actions show knife slicing cleanly through real ingredients on a board. "
+        "Natural steam and food physics, hands safely hold designated ergonomic handles."
+    ),
+    "perfume_fragrance": (
+        "PERFUME & FRAGRANCE DIRECTIVE: Premium crystal-clear glass bottle with authentic liquid level, refractive reflections, "
+        "and visible dip tube. Actuator releases a delicate, ultra-fine conical micro-mist spray. "
+        "When sprayed on pulse points (inner wrist, neck, collarbone): natural elegant hand posture, light refreshing atomization "
+        "with zero wet dripping or smoke artifacts."
+    ),
+    "lipstick_makeup": (
+        "COSMETICS & LIPSTICK DIRECTIVE: When lipstick or cosmetic is applied to lips or skin, the physical pigment payoff "
+        "MUST be instantly visible and dramatic! Bare lips visibly transform in real-time as the product glides smoothly across, "
+        "depositing rich, saturated, vibrant color pigment, creating fully coated, defined, luscious lips in the product's exact shade."
+    ),
+    "skincare": (
+        "SKINCARE & SERUM DIRECTIVE: Clean skincare demonstration. Glass dropper pipette releases 1-2 distinct translucent liquid "
+        "droplets onto cheek or back of hand. Serum/cream spreads smoothly with fingertips and absorbs cleanly into the skin, "
+        "leaving a healthy, radiant, natural dewy glow. Authentic human skin texture with natural pores, never plastic."
+    ),
+    "mask_facial": (
+        "MASK APPLICATION DIRECTIVE: For sheet masks: clear separate soft fabric/hydrogel sheet with distinct eye, nose, "
+        "and mouth cutouts, fitting smoothly and adhering naturally to facial contours without melting into skin. "
+        "For clay masks: smooth uniform layer spread across cheeks and forehead avoiding eyes and lips. Realistic peeling or washing action."
+    ),
+    "fashion_apparel": (
+        "FASHION & APPAREL DIRECTIVE: Natural textile drape, authentic fabric weave and stitching details. "
+        "Bags and accessories hang naturally with correct gravity and strap tension over shoulders or in hand. "
+        "Shoes rest flat on floor with realistic soles. Watches fit comfortably on wrist with sharp legible dial."
+    ),
+    "food_beverage": (
+        "FOOD & BEVERAGE DIRECTIVE: Highly appetizing commercial presentation. Fresh textures, natural golden crispiness, vibrant colors. "
+        "Pouring liquids exhibit natural fluid dynamics, smooth stream, and surface tension into cups. Crisp commercial food styling."
+    ),
+    "general_product": (
+        "GENERAL PRODUCT FIDELITY DIRECTIVE: Natural physical interaction. Hands interact with the product using anatomically correct postures "
+        "and proper grip for its size and function. Objects rest on real solid surfaces with natural contact shadows and accurate weight physics. "
+        "Zero floating, zero clipping."
+    ),
+}
+
+CATEGORY_CATALOG_HINTS = {
+    "audio_tws": "Charging case cleanly presented with matching wireless earbuds displayed nearby on a minimal pedestal.",
+    "phone_gadget": "Sleek smartphone standing upright on sleek acrylic stand with screen displaying clean modern wallpaper.",
+    "kitchen_home": "Clean kitchenware displayed on marble or wooden countertop with soft warm kitchen lighting.",
+    "perfume_fragrance": "Luxury glass perfume bottle on elegant reflective surface with soft dramatic rim light.",
+    "lipstick_makeup": "Lipstick tube uncapped showing pristine angled bullet, next to sleek matching cap.",
+    "skincare": "Amber or frosted glass dropper bottle standing on clean bathroom vanity surface with fresh water droplet accent.",
+    "mask_facial": "Modern cosmetic facial mask pouch package with clean layout on soft pastel surface.",
+    "fashion_apparel": "Fashion item styled cleanly on minimal display mannequin or flat surface with authentic fabric texture.",
+    "food_beverage": "Gourmet food or beverage styling with appetizing fresh garnishes and condensation.",
+    "general_product": "Product centered on a clean studio display platform with soft shadow and crisp commercial lighting.",
+}
+
 SYSTEM_BOARD = """Kamu adalah sutradara senior video affiliate TikTok.
 
 SACRED FLOW:
@@ -99,13 +232,17 @@ ATURAN:
 - visual_id / camera_id / action_id: Bahasa Indonesia, untuk sheet storyboard. camera_id sebutkan angle & gerakan (misal "Close up, push in perlahan").
 - MOTION CONTROL (camera_en): arahan kamera PRESISI Bahasa Inggris per beat, format: [shot size] + [SATU gerakan kamera] + [kecepatan] + [arah]. Shot size pilih satu: extreme close-up / close-up / medium shot / wide shot. Gerakan pilih SATU saja: static / slow push in / slow pull out / pan left / pan right / tilt up / tilt down / slow orbit / tracking shot / handheld. DILARANG menggabungkan dua gerakan dalam satu beat.
 - action: HANYA aksi subjek/produk (Bahasa Inggris), TANPA gerakan kamera.
-- EFEK NYATA & PERUBAHAN WARNA (SANGAT PENTING):
-  Jika produk diaplikasikan ke tubuh atau objek (misal: lipstik/lipcream di bibir, skincare di kulit, makeup di wajah, pembersih noda):
-  visual_prompt dan action HARUS secara eksplisit mendeskripsikan PERUBAHAN VISUAL / TRANSFER PIGMEN WARNA yang terjadi!
-  Contoh lipstik:
-  'visual_prompt': 'Extreme close-up of bare lips as lipstick glides across, visibly coating lips with rich vibrant [warna] pigment, showing clear before-and-after color transformation'
-  'action': 'The lipstick glides across bare lips, visibly depositing rich pigmented [warna] color in real time, instantly transforming bare lips into fully coated, glossy [warna] lips'
-  DILARANG KERAS hanya menulis 'mengoleskan lipstik' tanpa mendeskripsikan bibir yang berubah warna!
+- PANDUAN SEMUA KATEGORI PRODUK (ANTI-ANOMALI 100%):
+  1. TWS / AUDIO: Charging case terbuka memperlihatkan 2 earbud di slot magnetik. Saat dipakai di telinga: pas di concha telinga dengan stem mengarah ke bawah sepanjang rahang. DILARANG earbud melayang atau berubah jadi perhiasan!
+  2. HP / GADGET / LAPTOP: Layar menyala menampilkan wallpaper minimalis atau UI modern tanpa teks aneh. Jari memegang bezel/sisi bodi tanpa tembus layar. Modul kamera belakang dan tombol fisik presisi sesuai referensi.
+  3. ALAT DAPUR / APPLIANCES: Letakkan di atas meja dapur kokoh. Pisau memotong bahan nyata di talenan; blender berputar di dalam pitcher tertutup; uap panas natural; tangan memegang gagang ergonomis aman.
+  4. PARFUM / SPRAY: Botol kaca bening mewah dengan pantulan cahaya dan selang dalam terlihat. Semprotan micro-mist halus menyebar anggun ke pergelangan tangan atau leher. DILARANG cairan bocor/mengucur deras.
+  5. LIPSTIK / MAKEUP: WAJIB perlihatkan transfer warna nyata! Bibir polos seketika terlapisi pigmen warna pekat dan glossy/matte sesuai shade produk. DILARANG bibir tetap polos saat dioles!
+  6. SKINCARE / SERUM: Pipet kaca meneteskan 1-2 tetes cairan bening ke pipi/tangan, diratakan dengan jari lembut sampai meresap, menghasilkan kulit glowing sehat alami dengan pori natural (bukan kulit lilin/plastik).
+  7. MASKER (SHEET/CLAY/MEDIS): Sheet mask adalah lapisan kain/tissue terpisah dengan lubang mata/hidung/mulut yang pas menempel di kontur wajah (bukan kulit wajah yang meleleh!). Clay mask dioleskan rata menghindari mata/bibir.
+  8. FASHION / TAS / SEPATU / JAM: Tekstur bahan nyata (serat kain, kulit, jahitan). Tas digendong/dijinjing dengan gravitasi alami. Jam tangan melingkar rapi di pergelangan dengan dial tajam.
+  9. MAKANAN / MINUMAN: Tampilan lezat menggugah selera, cairan dituang mengalir mulus ke dalam gelas dengan dinamika air natural, tekstur renyah/segar.
+  10. PRODUK UMUM LAINNYA: Interaksi fisik alami sesuai fungsi asli benda, menempel di permukaan solid, bayangan kontak akurat, tanpa objek melayang atau distorsi tangan.
 - ATURAN MODE AUDIO:
   - Jika audio 'asmr' atau 'musik': video ini adalah TANPA SUARA BICARA (NO VOICEOVER).
     Karakter DILARANG berbicara atau menggerakkan mulut ke kamera! Bibir tetap tertutup rileks.
@@ -279,13 +416,16 @@ async def generate_storyboard(produk: str, deskripsi: str, durasi: int,
     total_segments = max(1, int(durasi) // 8)
     n_scene = max(2, total_segments * 2)
     is_silent_audio = audio in ("asmr", "musik")
+    cat = get_product_category(produk, deskripsi)
     user = (
         f"Produk: {produk}\nDeskripsi produk: {deskripsi}\n"
+        f"Kategori produk terdeteksi: {cat.upper()}.\n"
         f"Durasi total video: {durasi} detik ({total_segments} segmen @ 8 detik).\n"
         f"Tulis TEPAT {n_scene} beat cerita berurutan (2 beat per segmen 8 detik, masing-masing 4 detik).\n"
         f"PENTING: Alur cerita harus MAJU dan BERBEDA di setiap beat. DILARANG MENGULANG adegan/aksi yang sama!\n"
+        f"Wajib patuhi aturan fisik kategori {cat.upper()} tanpa ada anomali visual!\n"
         f"Beat 1-2: Hook & pembuka dramatis memperkenalkan {produk}.\n"
-        + (f"Beat 3-4: Demonstrasi fungsi utama dan detail produk secara nyata (jika kosmetik/lipstik/skincare: deskripsikan hasil perubahan warna/tekstur nyata pada bibir/kulit!).\n" if total_segments >= 2 else "")
+        + (f"Beat 3-4: Demonstrasi fungsi utama dan detail produk secara nyata (tunjukkan hasil visual nyata penggunaan produk!).\n" if total_segments >= 2 else "")
         + (f"Beat 5-6: Hasil memuaskan, variasi pemakaian, dan Call to Action beli di keranjang kuning.\n" if total_segments >= 3 else (f"Beat {n_scene}: Call to Action beli di keranjang kuning.\n" if total_segments == 1 else f"Beat 4: Call to Action beli di keranjang kuning.\n"))
         + f"Style visual: {style}. {STYLE_BOARD_GUIDE.get(style, '')} Framing: {FRAME_HINT.get(framing, '')}.\n"
         f"Mode audio: {AUDIO_LABEL.get(audio, audio)}.\n"
@@ -345,17 +485,21 @@ STYLE_BOARD_GUIDE = {
 }
 
 def build_frame_prompt(sc: dict, spec_text: str = "",
-                       style: str = "sinematik", framing: str = "tangan") -> str:
+                       style: str = "sinematik", framing: str = "tangan",
+                       produk: str = "") -> str:
     """Prompt for generating a single storyboard reference frame (9:16)."""
     base = sc.get("visual_prompt") or sc.get("judul") or "Product commercial shot"
     style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
     frame_desc = FRAME_HINT.get(framing, "")
+    cat = get_product_category(produk or "", base)
+    cat_directive = CATEGORY_DIRECTIVES.get(cat, CATEGORY_DIRECTIVES["general_product"])
     parts = [
         f"High quality 9:16 vertical commercial photo. {base}.",
         f"Style & Framing: {style_desc} {frame_desc}".strip(),
     ]
     if spec_text:
         parts.append(f"Product fidelity: {spec_text}")
+    parts.append(cat_directive)
     parts.append(ANATOMY_LOCK)
     parts.append(APPLICATION_EFFECT_LOCK)
     parts.append("Clean composition, professional studio lighting, centered subject, crystal sharp details, no text, no watermark.")
@@ -391,6 +535,8 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
     style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
     frame_desc = FRAME_HINT.get(framing, "")
     audio_desc = AUDIO_HINT.get(audio, AUDIO_HINT.get("vo", ""))
+    cat = get_product_category(produk or "", board.get("marketing_angle", ""))
+    cat_directive = CATEGORY_DIRECTIVES.get(cat, CATEGORY_DIRECTIVES["general_product"])
 
     segment_prompts = []
 
@@ -450,6 +596,7 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
         elif audio_desc:
             parts.append(audio_desc)
 
+        parts.append(cat_directive)
         parts.append(APPLICATION_EFFECT_LOCK)
         parts.append(ANATOMY_LOCK)
         parts.append(MOTION_LOCK)
@@ -476,19 +623,23 @@ ENHANCE_PROMPT = (
     "CRITICAL FIDELITY: preserve the EXACT appearance of EVERY part of the product - "
     "color, material, texture, and finish. A metal part stays metal, plastic stays plastic, "
     "glass stays glass, fabric stays fabric. Matte stays matte, glossy stays glossy. "
+    "Transparent glass and liquid remain crystal clean and refractive. Screen displays stay pristine. "
     "DO NOT change materials, DO NOT shift colors brighter or darker, DO NOT add, remove, "
     "or redesign any part. What you see in the original is EXACTLY what must appear - "
-    "only sharper and cleaner, never different. "
-    "Studio lighting, clean simple background, remove all clutter and unimportant objects, "
-    "no people, no text, no watermark. Vertical 9:16."
+    "only sharper, cleaner, and studio-grade, never different. "
+    "Studio lighting, clean simple studio background, remove all clutter, watermarks, "
+    "unimportant background objects, and distracting hands. Product centered, vertical 9:16."
 )
 
 
 def catalog_prompt(produk: str, deskripsi: str) -> str:
+    cat = get_product_category(produk, deskripsi)
+    cat_hint = CATEGORY_CATALOG_HINTS.get(cat, CATEGORY_CATALOG_HINTS["general_product"])
     return (
-        f"Clean HD e-commerce catalog product photo of: {produk}. {deskripsi} "
-        "Studio lighting, simple clean background, product centered and razor sharp, "
-        "no people, no text, no watermark. Vertical 9:16."
+        f"Clean HD commercial e-commerce product photograph of: {produk}. {deskripsi} "
+        f"{cat_hint} "
+        "Professional studio lighting, clean elegant minimalist background, product perfectly centered, "
+        "crystal sharp details, authentic textures, no text, no watermark, no distortions. Vertical 9:16."
     )
 
 
