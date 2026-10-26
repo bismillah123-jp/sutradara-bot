@@ -1,4 +1,4 @@
-"""Komposer sheet storyboard (PIL) - format: Marketing Angle + info + scene grid ultra HD."""
+"""Komposer sheet storyboard (PIL) - format: Marketing Angle + info + scene grid ultra HD tanpa teks terpotong."""
 import os
 from PIL import Image, ImageDraw, ImageFont
 
@@ -61,10 +61,29 @@ def _font(size: int, bold: bool = False):
 
 
 def _wrap(draw, text: str, font, max_w: int):
+    """Bungkus teks per kata atau pecah karakter jika kata melebihi lebar maksimum."""
     if not text:
         return [""]
-    words, lines, cur = str(text).split(), [], ""
+    text = str(text).strip()
+    words = text.split()
+    lines = []
+    cur = ""
     for w in words:
+        if draw.textlength(w, font=font) > max_w:
+            if cur:
+                lines.append(cur)
+                cur = ""
+            chunk = ""
+            for ch in w:
+                if draw.textlength(chunk + ch, font=font) <= max_w:
+                    chunk += ch
+                else:
+                    if chunk:
+                        lines.append(chunk)
+                    chunk = ch
+            cur = chunk
+            continue
+
         t = f"{cur} {w}".strip() if cur else w
         if draw.textlength(t, font=font) <= max_w:
             cur = t
@@ -91,7 +110,7 @@ def _paste_rounded_frame(canvas, path: str, box, radius=16, border_color=(226, 2
     left, top = (nw - tw) // 2, (nh - th) // 2
     im = im.crop((left, top, left + tw, top + th))
 
-    # Mask with rounded corners
+    # Mask sudut melengkung (rounded corners)
     mask = Image.new("L", (tw, th), 0)
     draw_mask = ImageDraw.Draw(mask)
     draw_mask.rounded_rectangle([0, 0, tw, th], radius=radius, fill=255)
@@ -108,7 +127,7 @@ def _paste_rounded_frame(canvas, path: str, box, radius=16, border_color=(226, 2
 def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
                   hero_path: str, frame_paths: list, out_path: str,
                   style: str = "sinematik", audio: str = "vo"):
-    """Komposisi storyboard sheet beresolusi tinggi dengan layout adaptive grid."""
+    """Komposisi storyboard sheet beresolusi tinggi dengan tinggi adaptif (100% tanpa teks terpotong)."""
     scenes = board.get("scenes") or []
     n = len(scenes)
     if n == 0:
@@ -121,40 +140,91 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
     d = ImageDraw.Draw(tmp)
 
     f_super = _font(22, True)
-    f_tag = _font(48, True)
-    f_bullet = _font(28)
-    f_label = _font(24, True)
-    f_value = _font(26)
-    f_badge = _font(28, True)
-    f_scene_title = _font(38, True)
-    f_card_title = _font(32, True)
-    f_cap_label = _font(22, True)
-    f_cap = _font(24)
+    f_tag = _font(46, True)
+    f_bullet = _font(26)
+    f_label = _font(22, True)
+    f_value = _font(24)
+    f_badge = _font(26, True)
+    f_scene_title = _font(36, True)
+    f_card_title = _font(30, True)
+    f_cap_label = _font(20, True)
+    f_cap = _font(22)
 
-    # 1. Header calculation
+    # 1. Perhitungan Tinggi Header Dinamis (Kiri & Kanan)
     left_w = 980
     tag_str = board.get("marketing_angle", "") or board.get("title", produk)
     tag_lines = _wrap(d, f"“{tag_str}”", f_tag, left_w)
+
     bullet_lines = []
     for sp in board.get("selling_points", [])[:4]:
         bullet_lines.extend(_wrap(d, sp, f_bullet, left_w - 52))
 
-    header_h = 76 + len(tag_lines) * 62 + 24 + len(bullet_lines) * 38 + 36
-    header_h = max(header_h, 480)
+    left_h = 68 + 36 + len(tag_lines) * 58 + 20 + len(bullet_lines) * 36 + 40
 
-    # 2. Adaptive Grid Configuration
+    hero_x0 = M + left_w + 32
+    hero_w = 320
+    ix = hero_x0 + hero_w + 32
+    info_max_w = W - M - ix - 24
+
+    infos = [
+        ("PRODUK:", produk),
+        ("FORMAT:", "9:16 Vertical Commercial Video"),
+        ("DURASI:", f"{durasi} Detik ({n} Beat Scene)"),
+        ("TARGET AUDIENCE:", board.get("target_audience", "-")),
+        ("OBJECTIVE:", board.get("objective", "-")),
+    ]
+
+    right_info_h = 68
+    for label, val in infos:
+        w_lines = _wrap(d, val, f_value, info_max_w)
+        right_info_h += 28 + len(w_lines) * 30 + 10
+    right_info_h += 30
+
+    header_h = max(left_h, right_info_h, 480)
+
+    # 2. Konfigurasi Grid & Perhitungan Tinggi Kartu Dinamis
     if n <= 4:
         cols = 2
         rows = (n + 1) // 2
         card_w = (W - 2 * M - gap) // 2  # 840 px wide
-        card_h = 740
         use_side_by_side = True
+        img_w = 360
+        img_h = 675  # Proporsi 9:16 vertikal murni
+        sw = card_w - img_w - 56  # 424 px wide untuk kolom teks
     else:
         cols = 3
         rows = (n + 2) // 3
         card_w = (W - 2 * M - 2 * gap) // 3  # 544 px wide
-        card_h = 1080
         use_side_by_side = False
+        img_w = card_w - 36  # 508 px
+        img_h = 677          # Proporsi vertikal luas
+        sw = card_w - 40     # 504 px wide untuk teks
+
+    # Hitung kebutuhan tinggi teks per kartu (TIDAK ADA PEMOTONGAN TEKS)
+    scene_text_heights = []
+    for sc in scenes:
+        judul = sc.get("judul", "")
+        judul_lines = _wrap(d, judul, f_card_title, sw)
+
+        items = [
+            ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
+            ("🎥 KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
+            ("⚡ AKSI", sc.get("action_id") or sc.get("action", "-")),
+            ("🗣️ SKRIP / VO", sc.get("narasi", "") or ("🎧 Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
+        ]
+
+        h_acc = 46 + len(judul_lines) * 36 + 10
+        for lbl, val in items:
+            val_lines = _wrap(d, val, f_cap, sw)
+            h_acc += 26 + len(val_lines) * 28 + 8
+        scene_text_heights.append(h_acc)
+
+    max_text_h = max(scene_text_heights) if scene_text_heights else 300
+
+    if use_side_by_side:
+        card_h = max(img_h + 36, max_text_h + 36)
+    else:
+        card_h = 18 + img_h + 16 + max_text_h + 24
 
     title_h = 80
     cards_total_h = rows * card_h + (rows - 1) * gap
@@ -164,17 +234,17 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
     img = Image.new("RGB", (W, H), WHITE)
     dr = ImageDraw.Draw(img)
 
-    # Header Box
+    # 3. Gambar Header Box
     dr.rounded_rectangle([M, 36, W - M, 36 + header_h], radius=24, fill=PANEL, outline=BORDER, width=2)
 
-    # Header Left: Marketing Angle & Selling points
+    # Header Kiri: Marketing Angle & Selling points (Cetak 100% baris teks)
     x, y = M + 36, 68
     dr.text((x, y), "★ MARKETING ANGLE & HOOK BIBLE", font=f_super, fill=RED)
-    y += 42
+    y += 38
     for ln in tag_lines:
         dr.text((x, y), ln, font=f_tag, fill=DARK)
-        y += 62
-    y += 16
+        y += 58
+    y += 14
     for sp in board.get("selling_points", [])[:4]:
         lines = _wrap(dr, sp, f_bullet, left_w - 52)
         for j, ln in enumerate(lines):
@@ -182,11 +252,9 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
                 dr.ellipse([x, y + 4, x + 24, y + 28], fill=GREEN)
                 dr.text((x + 6, y + 1), "✓", font=_font(18, True), fill=WHITE)
             dr.text((x + 38, y), ln, font=f_bullet, fill=GRAY)
-            y += 38
+            y += 36
 
-    # Header Right: Hero Image + Metadata
-    hero_x0 = M + left_w + 32
-    hero_w = 320
+    # Header Kanan: Foto Katalog Hero + Metadata Lengkap
     hero_h = header_h - 72
     _paste_rounded_frame(img, hero_path, (hero_x0, 68, hero_x0 + hero_w, 68 + hero_h),
                          radius=16, border_color=BORDER, border_width=2)
@@ -196,25 +264,17 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
     t_ref_w = dr.textlength(t_ref, font=_font(18, True))
     dr.text((hero_x0 + (hero_w - t_ref_w) / 2, 68 + hero_h - 35), t_ref, font=_font(18, True), fill=WHITE)
 
-    ix = hero_x0 + hero_w + 32
     iy = 68
-    info_max_w = W - M - ix - 24
-    infos = [
-        ("PRODUK:", produk),
-        ("FORMAT:", "9:16 Vertical Video"),
-        ("DURASI:", f"{durasi} Detik ({n} Beat Scene)"),
-        ("TARGET AUDIENCE:", board.get("target_audience", "-")),
-        ("OBJECTIVE:", board.get("objective", "-")),
-    ]
     for label, value in infos:
         dr.text((ix, iy), label, font=f_label, fill=RED)
-        iy += 32
-        for ln in _wrap(dr, value, f_value, info_max_w)[:2]:
+        iy += 28
+        # Cetak SELURUH baris tanpa pemotongan
+        for ln in _wrap(dr, value, f_value, info_max_w):
             dr.text((ix, iy), ln, font=f_value, fill=DARK)
-            iy += 32
-        iy += 12
+            iy += 30
+        iy += 10
 
-    # Section Title
+    # 4. Judul Sesi Storyboard
     sy = 36 + header_h + 36
     dr.text((M, sy), f"STORYBOARD VISUAL • {n} BEAT SCENE ({durasi} DETIK TIKTOK)",
             font=f_scene_title, fill=DARK)
@@ -224,6 +284,7 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
     fy = sy + title_h
     dur_beat = max(1, durasi // n)
 
+    # 5. Render Setiap Kartu Scene (100% Teks Ditampilkan Utuh)
     for i, sc in enumerate(scenes):
         row = i // cols
         col = i % cols
@@ -238,39 +299,37 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
         t_end = durasi if i == n - 1 else (i + 1) * dur_beat
 
         if use_side_by_side:
-            # 2-column layout: side-by-side (Left: 9:16 frame, Right: specs)
+            # Layout 2 Kolom (Side-by-Side): Gambar di kiri, teks di kanan
             img_x = cx + 18
-            img_y = cy + 18
-            img_w = 360
-            img_h = 704
+            # Posisi vertikal gambar presisi di tengah kartu jika kartu lebih tinggi
+            img_y = cy + (card_h - img_h) // 2
             _paste_rounded_frame(img, fp, (img_x, img_y, img_x + img_w, img_y + img_h),
                                  radius=14, border_color=BORDER, border_width=2)
 
-            # Circular number badge
+            # Lencana nomor beat
             badge_r = 24
             dr.ellipse([img_x + 14, img_y + 14, img_x + 14 + 2 * badge_r, img_y + 14 + 2 * badge_r], fill=RED)
             num_str = str(i + 1)
             nw = dr.textlength(num_str, font=f_badge)
             dr.text((img_x + 14 + badge_r - nw / 2, img_y + 14 + 8), num_str, font=f_badge, fill=WHITE)
 
-            # Specs column on right
+            # Kolom teks kanan
             sx = img_x + img_w + 24
             sy_cur = cy + 22
-            sw = card_w - img_w - 56
 
-            # Timing pill
+            # Badge Timing Beat
             dr.rounded_rectangle([sx, sy_cur, sx + 220, sy_cur + 36], radius=10, fill=PILL_BG)
             dr.text((sx + 14, sy_cur + 6), f"BEAT {i+1} • {t_start}-{t_end}s", font=f_label, fill=RED)
-            sy_cur += 50
+            sy_cur += 48
 
-            # Title
+            # Judul Beat (Cetak penuh tanpa slice)
             judul = sc.get("judul", f"Scene {i+1}")
-            for ln in _wrap(dr, judul, f_card_title, sw)[:2]:
+            for ln in _wrap(dr, judul, f_card_title, sw):
                 dr.text((sx, sy_cur), ln, font=f_card_title, fill=DARK)
-                sy_cur += 40
-            sy_cur += 12
+                sy_cur += 36
+            sy_cur += 10
 
-            # Visual, Camera, Action, VO
+            # Detail Scene: VISUAL, KAMERA, AKSI, SKRIP VO (Cetak 100% baris)
             items = [
                 ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
                 ("🎥 KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
@@ -279,18 +338,17 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
             ]
             for lbl, val in items:
                 dr.text((sx, sy_cur), lbl, font=f_cap_label, fill=RED)
-                sy_cur += 28
-                for ln in _wrap(dr, val, f_cap, sw)[:3]:
+                sy_cur += 26
+                # Tanpa [:2] atau [:3]! Seluruh baris dicetak lengkap!
+                for ln in _wrap(dr, val, f_cap, sw):
                     dr.text((sx, sy_cur), ln, font=f_cap, fill=DARK)
-                    sy_cur += 30
+                    sy_cur += 28
                 sy_cur += 8
 
         else:
-            # 3-column layout: vertical stacked
+            # Layout 3 Kolom: Vertikal bertingkat (Gambar di atas, teks di bawah)
             img_x = cx + 18
             img_y = cy + 18
-            img_w = card_w - 36
-            img_h = 670
             _paste_rounded_frame(img, fp, (img_x, img_y, img_x + img_w, img_y + img_h),
                                  radius=14, border_color=BORDER, border_width=2)
 
@@ -302,12 +360,18 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
 
             sx = cx + 20
             sy_cur = img_y + img_h + 16
-            sw = card_w - 40
 
-            # Timing pill
+            # Badge Timing Beat
             dr.rounded_rectangle([sx, sy_cur, sx + 190, sy_cur + 34], radius=10, fill=PILL_BG)
             dr.text((sx + 14, sy_cur + 6), f"BEAT {i+1} • {t_start}-{t_end}s", font=f_label, fill=RED)
-            sy_cur += 44
+            sy_cur += 42
+
+            # Judul Beat (Cetak penuh tanpa slice)
+            judul = sc.get("judul", f"Scene {i+1}")
+            for ln in _wrap(dr, judul, f_card_title, sw):
+                dr.text((sx, sy_cur), ln, font=f_card_title, fill=DARK)
+                sy_cur += 34
+            sy_cur += 8
 
             items = [
                 ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
@@ -317,13 +381,14 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
             ]
             for lbl, val in items:
                 dr.text((sx, sy_cur), lbl, font=f_cap_label, fill=RED)
-                sy_cur += 26
-                for ln in _wrap(dr, val, f_cap, sw)[:2]:
+                sy_cur += 24
+                # Tanpa pemotongan baris!
+                for ln in _wrap(dr, val, f_cap, sw):
                     dr.text((sx, sy_cur), ln, font=f_cap, fill=DARK)
                     sy_cur += 28
                 sy_cur += 6
 
-    # Footer Banner
+    # 6. Banner Footer
     footer_y = H - footer_h - 20
     dr.rounded_rectangle([M, footer_y, W - M, footer_y + footer_h], radius=16, fill=DARK)
     f_foot_title = _font(24, True)
