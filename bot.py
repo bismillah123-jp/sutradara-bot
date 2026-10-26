@@ -15,7 +15,10 @@ from telegram.ext import (
 )
 
 from research import research_products, riset_caption
-from webcatalog import cari_kandidat_katalog, bedah_link, unduh_gambar, validasi_kandidat
+from webcatalog import (
+    cari_kandidat_katalog, bedah_link, unduh_gambar, validasi_kandidat,
+    extract_first_url,
+)
 from admin import (
     ft, FOOTER, ADMIN_IDS, users_db, is_admin, catat_user, cek_ban,
     ban_user, unban_user, boleh_produksi, catat_produksi,
@@ -665,10 +668,11 @@ async def manual_nama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
     s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
-    teks = update.message.text.strip()
-    if teks.lower().startswith(("http://", "https://")):
+    teks = (update.message.text or "").strip()
+    found_url = extract_first_url(teks)
+    if found_url:
         s["produk"] = ""
-        return await manual_link(update, context, s, chat_id, teks)
+        return await manual_link(update, context, s, chat_id, found_url)
     s["produk"] = teks
     await say(context, chat_id, s,
               f"\u2705 Produk: *{s['produk']}*\n\nCeritain produknya dikit ya \u2014 "
@@ -684,9 +688,10 @@ async def manual_deskripsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
     s = get_session(update.effective_user.id)
     chat_id = update.effective_chat.id
-    teks = update.message.text.strip()
-    if teks.lower().startswith(("http://", "https://")):
-        return await manual_link(update, context, s, chat_id, teks)
+    teks = (update.message.text or "").strip()
+    found_url = extract_first_url(teks)
+    if found_url:
+        return await manual_link(update, context, s, chat_id, found_url)
     s["deskripsi"] = teks
     await say(context, chat_id, s, "\U0001F3A8 Pilih *style video*:",
               reply_markup=kb_grid(STYLES, "style", back=True), parse_mode="Markdown",
@@ -720,31 +725,71 @@ async def manual_link(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await pmsg_bedah.delete()
         except Exception:
             pass
+
     if info.get("nama"):
         s["produk"] = info["nama"]
-    s["deskripsi"] = info.get("deskripsi", "")
+    if info.get("deskripsi"):
+        s["deskripsi"] = info["deskripsi"]
+    if info.get("selling_points"):
+        s["selling_points"] = info["selling_points"]
+    if info.get("harga"):
+        s["harga"] = info["harga"]
+
     workdir = _siapkan_workdir(s)
+    katalog_path = None
+    all_imgs = []
     if info.get("image_url"):
+        all_imgs.append(info["image_url"])
+    for im in info.get("images", []):
+        if im and im not in all_imgs:
+            all_imgs.append(im)
+
+    # 1. Coba unduh dari kandidat gambar link produk
+    for idx, im_url in enumerate(all_imgs[:6]):
+        dest = workdir / f"katalog_link_{idx}.jpg"
         try:
-            dest = workdir / "katalog_link.jpg"
-            await asyncio.to_thread(unduh_gambar, info["image_url"], str(dest))
-            s["katalog"] = str(dest)
-        except Exception:
-            log.exception("unduh gambar link gagal")
-            s["katalog"] = None
-    else:
-        s["katalog"] = None
+            await asyncio.to_thread(unduh_gambar, im_url, str(dest))
+            if dest.exists() and dest.stat().st_size > 2500:
+                katalog_path = str(dest)
+                break
+        except Exception as e:
+            log.warning("Gagal unduh gambar link %s: %s", im_url[:60], e)
+            continue
+
+    # 2. Fallback: jika gambar dari link nihil/gagal, otomatis cari katalog web
+    sumber_katalog = "link"
+    if not katalog_path and s.get("produk"):
+        try:
+            log.info("Gambar dari link nihil, mencari katalog web untuk %s", s["produk"])
+            cands = await asyncio.to_thread(cari_kandidat_katalog, s["produk"], s.get("deskripsi", ""), 3)
+            for c_idx, c in enumerate(cands[:3]):
+                dest = workdir / f"katalog_link_fallback_{c_idx}.jpg"
+                try:
+                    await asyncio.to_thread(unduh_gambar, c["img"], str(dest))
+                    if dest.exists() and dest.stat().st_size > 2500:
+                        katalog_path = str(dest)
+                        sumber_katalog = "web"
+                        break
+                except Exception:
+                    continue
+        except Exception as e:
+            log.warning("Fallback cari katalog web gagal: %s", e)
+
+    s["katalog"] = katalog_path
     ringkas = (f"\u2705 *Link kebedah!*\n\n\U0001F4E6 *{s['produk']}*\n"
                + (f"\U0001F4B0 {info['harga']}\n" if info.get("harga") else "")
                + f"\U0001F4DD {s['deskripsi']}\n")
     if s.get("katalog"):
         with open(s["katalog"], "rb") as kf:
+            caption_txt = ("\U0001F5BC\ufe0f Gambar produknya udah gw ambil dari linknya \U0001F446"
+                           if sumber_katalog == "link" else
+                           "\U0001F5BC\ufe0f Gambar produknya udah gw cariin otomatis dari web katalog \U0001F446")
             await context.bot.send_photo(
                 chat_id, photo=kf,
-                caption=ft("\U0001F5BC\ufe0f Gambar produknya udah gw ambil dari linknya \U0001F446"))
+                caption=ft(caption_txt))
         ringkas += "\n\U0001F5BC\ufe0f Gambar katalog udah aman \u2014 nanti bisa lo ganti juga di langkah katalog."
     else:
-        ringkas += "\n\U0001F5BC\ufe0f Gambarnya nggak ketemu di linknya \u2014 nanti pilih katalog di langkah foto ya."
+        ringkas += "\n\U0001F5BC\ufe0f Gambarnya belum ketemu di linknya \u2014 nanti pilih katalog di langkah foto ya."
     await say(context, chat_id, s, ringkas + "\n\U0001F3A8 Pilih *style video*:",
               reply_markup=kb_grid(STYLES, "style", back=True),
               parse_mode="Markdown", fresh=True)
