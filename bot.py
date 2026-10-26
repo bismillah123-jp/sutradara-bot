@@ -1684,7 +1684,28 @@ async def _proses_antrean(app, job):
                     await say(app, chat_id, s,
                               "Rp %s kepotong buat video ini. Sisa saldo: Rp %s."
                               % (billing.rp(bill_harga), billing.rp(billing.get_saldo(uid))))
-            if s.get("audio") == "asmr_vo":
+            if s.get("audio") in ("vo", "vo_id", "vo_en"):
+                scenes = board.get("scenes", [])
+                seg = max(1, s["durasi"]) // max(1, len(scenes))
+                lines, t = [], 0
+                for i, sc in enumerate(scenes):
+                    t2 = s["durasi"] if i == len(scenes) - 1 else t + seg
+                    nar = sc.get("narasi", "").strip()
+                    if nar:
+                        lines.append(f"• Beat {i+1} ({t}-{t2}s): \"{nar}\"")
+                    t = t2
+                full = " ".join(sc["narasi"].strip() for sc in scenes if sc.get("narasi", "").strip())
+                if lines:
+                    await app.bot.send_message(
+                        chat_id,
+                        ft("🗣️ *Skrip Narasi / Voiceover Video (Tersinkronisasi)*\n\n"
+                           "Skrip berikut sudah disinkronkan langsung ke dalam video di atas:\n\n"
+                           "📋 *Teks Lengkap:*\n"
+                           f"```\n{full}\n```\n\n"
+                           "⏱️ *Rincian per Beat Scene:*\n" + "\n".join(lines) + "\n\n"
+                           "💡 *Tip:* Kamu juga bisa gunakan teks di atas untuk auto-caption / subtitle di CapCut atau TikTok!"),
+                        parse_mode="Markdown")
+            elif s.get("audio") == "asmr_vo":
                 scenes = board["scenes"]
                 seg = max(1, s["durasi"]) // max(1, len(scenes))
                 lines, t = [], 0

@@ -1,5 +1,6 @@
 """Komposer sheet storyboard (PIL) - format: Marketing Angle + info + scene grid ultra HD tanpa teks terpotong."""
 import os
+import re
 from PIL import Image, ImageDraw, ImageFont
 
 # Color palette: High-end commercial studio & agency
@@ -12,6 +13,41 @@ PANEL = (248, 250, 252)      # Slate 50 clean panel
 BORDER = (226, 232, 240)     # Slate 200 border
 WHITE = (255, 255, 255)
 PILL_BG = (255, 241, 242)    # Rose 50 subtle pill
+
+# Unicode regex komprehensif untuk membersihkan glyph emoji yang menyebabkan kotak-kotak (tofu) di PIL
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U0001F700-\U0001F77F"  # alchemical symbols
+    "\U0001F780-\U0001F7FF"  # Geometric Shapes Extended
+    "\U0001F800-\U0001F8FF"  # Supplemental Arrows-C
+    "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+    "\U0001FA00-\U0001FA6F"  # Chess Symbols
+    "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
+    "\U00002702-\U000027B0"  # Dingbats
+    "\U000024C2-\U0001F251"  # Enclosed Alphanumeric
+    "\U00002600-\U000026FF"  # Miscellaneous Symbols
+    "\U00002300-\U000023FF"  # Miscellaneous Technical
+    "\U00002B00-\U00002BFF"  # Miscellaneous Symbols and Arrows
+    "\U000020D0-\U000020FF"  # Combining Diacritical Marks for Symbols
+    "\uFE00-\uFE0F"          # Variation Selectors
+    "\u200D"                 # Zero Width Joiner
+    "\u200B"                 # Zero Width Space
+    "]+",
+    flags=re.UNICODE
+)
+
+
+def clean_emojis_for_pil(text: str) -> str:
+    """Bersihkan karakter emoji dan variasi glyph tak terdefinisi agar PIL merender teks bersih tanpa kotak-kotak."""
+    if not text:
+        return ""
+    t = EMOJI_PATTERN.sub("", str(text))
+    t = re.sub(r" +", " ", t).strip()
+    return t
 
 _FONT_CACHE = {}
 
@@ -61,10 +97,12 @@ def _font(size: int, bold: bool = False):
 
 
 def _wrap(draw, text: str, font, max_w: int):
-    """Bungkus teks per kata atau pecah karakter jika kata melebihi lebar maksimum."""
+    """Bungkus teks per kata atau pecah karakter jika kata melebihi lebar maksimum (bersih dari emoji)."""
     if not text:
         return [""]
-    text = str(text).strip()
+    text = clean_emojis_for_pil(str(text))
+    if not text:
+        return [""]
     words = text.split()
     lines = []
     cur = ""
@@ -207,10 +245,10 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
         judul_lines = _wrap(d, judul, f_card_title, sw)
 
         items = [
-            ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
-            ("🎥 KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
-            ("⚡ AKSI", sc.get("action_id") or sc.get("action", "-")),
-            ("🗣️ SKRIP / VO", sc.get("narasi", "") or ("🎧 Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
+            ("VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
+            ("KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
+            ("AKSI", sc.get("action_id") or sc.get("action", "-")),
+            ("SKRIP / VO", sc.get("narasi", "") or ("Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
         ]
 
         h_acc = 46 + len(judul_lines) * 36 + 10
@@ -239,7 +277,7 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
 
     # Header Kiri: Marketing Angle & Selling points (Cetak 100% baris teks)
     x, y = M + 36, 68
-    dr.text((x, y), "★ MARKETING ANGLE & HOOK BIBLE", font=f_super, fill=RED)
+    dr.text((x, y), "MARKETING ANGLE & HOOK BIBLE", font=f_super, fill=RED)
     y += 38
     for ln in tag_lines:
         dr.text((x, y), ln, font=f_tag, fill=DARK)
@@ -250,7 +288,8 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
         for j, ln in enumerate(lines):
             if j == 0:
                 dr.ellipse([x, y + 4, x + 24, y + 28], fill=GREEN)
-                dr.text((x + 6, y + 1), "✓", font=_font(18, True), fill=WHITE)
+                # Vector checkmark - zero missing glyph tofu risk
+                dr.line([(x + 6, y + 16), (x + 10, y + 20), (x + 18, y + 11)], fill=WHITE, width=2)
             dr.text((x + 38, y), ln, font=f_bullet, fill=GRAY)
             y += 36
 
@@ -260,7 +299,7 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
                          radius=16, border_color=BORDER, border_width=2)
     dr.rounded_rectangle([hero_x0 + 16, 68 + hero_h - 40, hero_x0 + hero_w - 16, 68 + hero_h - 10],
                          radius=12, fill=DARK)
-    t_ref = "👑 KATALOG ACUAN"
+    t_ref = "KATALOG ACUAN"
     t_ref_w = dr.textlength(t_ref, font=_font(18, True))
     dr.text((hero_x0 + (hero_w - t_ref_w) / 2, 68 + hero_h - 35), t_ref, font=_font(18, True), fill=WHITE)
 
@@ -331,10 +370,10 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
 
             # Detail Scene: VISUAL, KAMERA, AKSI, SKRIP VO (Cetak 100% baris)
             items = [
-                ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
-                ("🎥 KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
-                ("⚡ AKSI", sc.get("action_id") or sc.get("action", "-")),
-                ("🗣️ SKRIP / VO", sc.get("narasi", "") or ("🎧 Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
+                ("VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
+                ("KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
+                ("AKSI", sc.get("action_id") or sc.get("action", "-")),
+                ("SKRIP / VO", sc.get("narasi", "") or ("Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
             ]
             for lbl, val in items:
                 dr.text((sx, sy_cur), lbl, font=f_cap_label, fill=RED)
@@ -374,10 +413,10 @@ def compose_sheet(board: dict, produk: str, jenis: str, durasi: int,
             sy_cur += 8
 
             items = [
-                ("👁️ VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
-                ("🎥 KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
-                ("⚡ AKSI", sc.get("action_id") or sc.get("action", "-")),
-                ("🗣️ SKRIP / VO", sc.get("narasi", "") or ("🎧 Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
+                ("VISUAL", sc.get("visual_id") or sc.get("visual_prompt", "-")),
+                ("KAMERA", sc.get("camera_id") or sc.get("camera_en", "-")),
+                ("AKSI", sc.get("action_id") or sc.get("action", "-")),
+                ("SKRIP / VO", sc.get("narasi", "") or ("Audio ASMR Foley (Silent)" if audio in ("asmr", "musik") else "-")),
             ]
             for lbl, val in items:
                 dr.text((sx, sy_cur), lbl, font=f_cap_label, fill=RED)

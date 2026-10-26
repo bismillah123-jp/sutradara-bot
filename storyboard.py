@@ -747,6 +747,7 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
 
         parts.append("SHOTS TO EXECUTE IN THIS 8-SECOND SEGMENT:")
         m = len(seg_scenes)
+        seg_dialogues = []
         for j, sc in enumerate(seg_scenes):
             shot_start = int(round(j * (8.0 / m)))
             shot_end = 8 if j == m - 1 else int(round((j + 1) * (8.0 / m)))
@@ -754,15 +755,37 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
             vis = sc.get("visual_prompt", "").strip() or sc.get("judul", "Showcase")
             act = sc.get("action", "").strip()
             cam = sc.get("camera_en", "").strip() or "Close-up, steady gimbal movement"
-            parts.append(
-                f"- Shot {shot_num} ({shot_start}-{shot_end}s in this segment): {vis}. Action: {act}. Camera: {cam}."
-            )
+            narasi = sc.get("narasi", "").strip()
+
+            shot_desc = f"- Shot {shot_num} ({shot_start}-{shot_end}s in this segment): {vis}. Action: {act}. Camera: {cam}."
+            if narasi and audio not in ("asmr", "musik", "asmr_vo"):
+                shot_desc += f' Spoken dialogue/voiceover: "{narasi}".'
+                seg_dialogues.append(f'Shot {shot_num} ({shot_start}-{shot_end}s): "{narasi}"')
+            parts.append(shot_desc)
 
         if audio in ("asmr", "musik", "asmr_vo"):
             parts.append(
-                "SILENT VOCALS LOCK: Strictly zero human speech, zero singing, zero talking. "
-                "The subject does NOT speak and keeps their mouth closed or relaxed. "
-                "Audio contains NO voiceover, only ambient product foley sounds."
+                "AUDIO & VOCALS (SILENT VOCALS LOCK):\n"
+                "- Strictly zero human speech, zero singing, zero talking.\n"
+                "- The subject does NOT speak and keeps their mouth closed or relaxed.\n"
+                "- Audio contains NO voiceover, only ambient product foley sounds and realistic environmental audio."
+            )
+        elif audio in ("vo", "vo_id", "vo_en") and seg_dialogues:
+            lang = "English" if audio == "vo_en" else "Indonesian"
+            combined_script = " ".join([sc.get("narasi", "").strip() for sc in seg_scenes if sc.get("narasi", "").strip()])
+            dialogue_timing = "\n".join(f"- {d}" for d in seg_dialogues)
+            parts.append(
+                f"AUDIO & EXACT SPOKEN SCRIPT LOCK ({lang.upper()} VOICEOVER):\n"
+                f"The video MUST feature fluent, natural {lang} voiceover reciting the EXACT storyboard script below.\n"
+                f'MANDATORY WORD-FOR-WORD SCRIPT TO RECITE:\n'
+                f'"{combined_script}"\n\n'
+                f"Shot-by-shot script timing:\n{dialogue_timing}\n\n"
+                f"CRITICAL VOICEOVER REQUIREMENTS:\n"
+                f"1. RECITE EXACT WORDS: Spoken dialogue and voiceover MUST match the exact words written above word-for-word. "
+                f"DO NOT change words, DO NOT invent alternative sentences, and DO NOT hallucinate random speech.\n"
+                f"2. LANGUAGE: Must be spoken in clear, authentic {lang}. DO NOT speak in any other language.\n"
+                f"3. SYNCHRONIZATION: The spoken voiceover timing and character mouth/lip movement (if face is visible) "
+                f"must strictly align with the script timing above."
             )
         elif audio_desc:
             parts.append(audio_desc)
