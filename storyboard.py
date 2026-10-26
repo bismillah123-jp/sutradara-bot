@@ -73,9 +73,9 @@ FRAME_HINT = {
 }
 
 AUDIO_LABEL = {
-    "vo": "voice over Bahasa Indonesia (skrip narasi untuk video)",
-    "vo_id": "voice over Bahasa Indonesia (skrip narasi untuk video)",
-    "vo_en": "voice over Bahasa Inggris (skrip narasi untuk video)",
+    "vo": "voice over Bahasa Indonesia (otomatis di-dubbing ke video)",
+    "vo_id": "voice over Bahasa Indonesia (otomatis di-dubbing ke video)",
+    "vo_en": "voice over Bahasa Inggris (otomatis di-dubbing ke video)",
     "asmr": "ASMR murni, TANPA voice over, TANPA bicara (hanya suara produk)",
     "musik": "musik latar saja, TANPA voice over, TANPA bicara",
     "asmr_vo": "ASMR di video + voice over manual (TETAP tulis narasi sebagai skrip VO)",

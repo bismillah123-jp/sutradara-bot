@@ -33,6 +33,7 @@ import billing
 import antrean
 from flowclient import FlowClient
 from sheet import compose_sheet
+import voice
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 log = logging.getLogger("sutradara-bot")
@@ -1829,6 +1830,23 @@ async def _proses_antrean(app, job):
 
             out = workdir / "final.mp4"
             out.write_bytes(mp4)
+
+            # SINKRONISASI VOICEOVER KE VIDEO (Jika audio mode = vo / vo_id / vo_en)
+            if s.get("audio") in ("vo", "vo_id", "vo_en"):
+                scenes = board.get("scenes", [])
+                full_script = " ".join(sc["narasi"].strip() for sc in scenes if sc.get("narasi", "").strip())
+                if full_script:
+                    vo_mp3 = workdir / "voiceover.mp3"
+                    vo_lang = voice.VOICE_EN if s.get("audio") == "vo_en" else voice.VOICE_ID_FEMALE
+                    try:
+                        await voice.make_voiceover(full_script, str(vo_mp3), voice=vo_lang)
+                        out_vo = workdir / "final_with_vo.mp4"
+                        if voice.mix_voiceover_to_video(str(out), str(vo_mp3), str(out_vo)):
+                            out = out_vo
+                            log.info("Voiceover berhasil dimixing ke video %s", out.name)
+                    except Exception as ex_vo:
+                        log.warning("Gagal membuat/mixing voiceover otomatis: %s", ex_vo)
+
             s["video_task"] = None
             if isinstance(sess, dict):
                 sess["video_task"] = None
@@ -1883,12 +1901,12 @@ async def _proses_antrean(app, job):
                 if lines:
                     await app.bot.send_message(
                         chat_id,
-                        ft("🗣️ *Skrip Narasi / Voiceover Video*\n\n"
-                           "Gunakan skrip narasi resmi ini untuk voiceover di TikTok / CapCut:\n\n"
+                        ft("🗣️ *Skrip Narasi / Voiceover Video (Sudah Ter-Dubbing)*\n\n"
+                           "Video di atas sudah langsung di-dubbing dengan suara AI jernih membacakan skrip berikut:\n\n"
                            "📋 *Teks Lengkap (Tinggal Tap & Copy):*\n"
                            f"```\n{full}\n```\n\n"
                            "⏱️ *Rincian per Beat Scene:*\n" + "\n".join(lines) + "\n\n"
-                           "💡 *Tip:* Kamu bisa langsung paste teks di atas ke fitur Text-to-Speech TikTok atau auto-caption di CapCut!"),
+                           "💡 *Tip:* Kamu juga bisa gunakan teks di atas untuk caption TikTok atau subtitle di CapCut!"),
                         parse_mode="Markdown")
             elif s.get("audio") == "asmr_vo":
                 scenes = board["scenes"]

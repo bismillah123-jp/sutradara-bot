@@ -1,0 +1,5 @@
+python-telegram-bot>=20.0
+pillow>=10.0.0
+numpy
+opencv-python
+edge-tts>=7.0.0
