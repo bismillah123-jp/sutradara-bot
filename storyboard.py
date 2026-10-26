@@ -23,6 +23,8 @@ ANOMALY_LOCK = ANATOMY_LOCK
 CONSISTENCY_LOCK = (
     "CONSISTENCY: The product itself is 100% identical in every frame to reference image #1 (golden catalog reference) "
     "- exact same form, color, texture, finish, typography, branding, and packaging. "
+    "ANTI-MECHA & ANTI-RGB LOCK: Do NOT add glowing neon LED lights, RGB strips, or futuristic robot/mecha armor lines "
+    "unless they are clearly and explicitly present in reference image #1. Keep the product clean, realistic, and commercially authentic. "
     "Consistent lighting, mood, and character appearance throughout. "
     "EXCEPTION FOR DEMO APPLICATION: When product is applied, worn, or demonstrated (such as lipstick onto lips, "
     "putting on clothing/watch, pouring water, or turning on a fan/device), the physical transformation and functional effect "
@@ -230,7 +232,11 @@ CATEGORY_DIRECTIVES = {
         "TWS & AUDIO GADGET DIRECTIVE: The product is a pair of wireless earbuds and their matching charging case. "
         "When shown in ears: each earbud fits naturally and securely inside the human ear concha with the stem pointing downward "
         "along the jawline. When shown in case: earbuds rest precisely in magnetic charging slots with subtle pin contacts and LED indicator light. "
-        "Zero floating earbuds, exactly 2 earbuds per pair, zero morphing into earrings or jewelry, natural human ear anatomy."
+        "Zero floating earbuds, exactly 2 earbuds per pair, zero morphing into earrings or jewelry, natural human ear anatomy. "
+        "ANTI-MECHA & ANTI-RGB HALLUCINATION LOCK: Even if the product is described as 'gaming', strictly maintain the sleek, minimalist "
+        "consumer electronics finish shown in the golden catalog reference. STRICTLY FORBIDDEN: Do NOT add glowing neon LED strips, "
+        "no colorful RGB lines, no robotic armor plating, no sci-fi mecha cybernetic angles. The earbuds and charging case must remain clean, "
+        "sleek, everyday consumer audio hardware, NOT sci-fi armor."
     ),
     "speaker_audio": (
         "SPEAKER & AUDIO EQUIPMENT DIRECTIVE: Solid, rigid acoustic chassis (cylindrical, soundbar, or box) with authentic metal mesh "
@@ -293,7 +299,9 @@ CATEGORY_DIRECTIVES = {
         "SMARTPHONE & ELECTRONICS DIRECTIVE: Modern, ultra-sleek device chassis with realistic screen bezel and precision glass finish. "
         "Hands grip the outer edges naturally without fingers clipping into the active display. "
         "When display is on: displays crisp modern wallpaper or clean minimal interface, no gibberish text artifacts. "
-        "Rear camera module retains exact lens arrangement, glass reflections, and physical buttons."
+        "Rear camera module retains exact lens arrangement, glass reflections, and physical buttons. "
+        "ANTI-MECHA LOCK: Even if labeled 'gaming phone/laptop', do NOT add exaggerated glowing neon lines, robot armor plates, or sci-fi angular spikes. "
+        "Keep the exact clean commercial form factor from the reference image."
     ),
     "kitchen_home": (
         "KITCHEN & CULINARY DIRECTIVE: Solid countertop setting with realistic kitchen environment and natural lighting. "
@@ -369,7 +377,7 @@ ATURAN:
 - MOTION CONTROL (camera_en): arahan kamera PRESISI Bahasa Inggris per beat, format: [shot size] + [SATU gerakan kamera] + [kecepatan] + [arah]. Shot size pilih satu: extreme close-up / close-up / medium shot / wide shot. Gerakan pilih SATU saja: static / slow push in / slow pull out / pan left / pan right / tilt up / tilt down / slow orbit / tracking shot / handheld. DILARANG menggabungkan dua gerakan dalam satu beat.
 - action: HANYA aksi subjek/produk (Bahasa Inggris), TANPA gerakan kamera.
 - PANDUAN SEMUA KATEGORI PRODUK (ANTI-ANOMALI 100%):
-  1. TWS / AUDIO: Charging case terbuka memperlihatkan 2 earbud di slot magnetik. Saat dipakai di telinga: pas di concha telinga dengan stem mengarah ke bawah sepanjang rahang. DILARANG earbud melayang atau berubah jadi anting/perhiasan!
+  1. TWS / AUDIO / GADGET GAMING: Charging case terbuka memperlihatkan 2 earbud di slot magnetik. Saat dipakai di telinga: pas di concha telinga dengan stem mengarah ke bawah sepanjang rahang. DILARANG earbud melayang atau berubah jadi anting/perhiasan! DILARANG KERAS mengubah bentuk TWS menjadi robot/mecha sci-fi atau menambahkan lampu neon/RGB menyala jika di gambar referensi tidak ada! Bentuk produk harus tetap rapi, bersih, dan 100% persis gambar katalog referensi.
   2. SPEAKER / AUDIO BLUETOOTH: Bodi speaker akustik kokoh dengan jaring/grille mesh rapi. Efek bass HANYA diperlihatkan lewat getaran fisik natural pada membran pasif radiator. DILARANG ada gambar not balok melayang atau lingkaran gelombang kartun!
   3. DISPENSER AIR / GALON: Bodi dispenser tegak di lantai/meja dengan drip tray bersih. Gelas diletakkan tepat di bawah corong; air mengalir bening laminar lurus ke dalam gelas dengan dinamika riak air realistis. DILARANG air bocor, tumpah ke luar, atau gelas melayang!
   4. POMPA ELEKTRIK (GALON & BAN): Pompa galon terpasang rapat tegak di leher galon, pipa stainless mengarah ke bawah mengucurkan air tenang saat tombol ditekan. Pompa ban elektrik tersambung kuat selangnya ke pentil ban, layar digital menunjukkan angka tekanan (PSI/Bar) stabil tanpa guncangan liar atau percikan api.
