@@ -141,3 +141,8 @@ def estimasi_waktu():
 
 def panjang_antrean():
     return len(_load())
+
+
+def sedang_antre(uid) -> bool:
+    """Cek apakah user sedang dalam proses atau sedang menunggu di antrean."""
+    return posisi_antrean(uid) > 0

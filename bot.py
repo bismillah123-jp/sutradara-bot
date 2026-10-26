@@ -52,6 +52,78 @@ B = InlineKeyboardButton  # alias tombol, dipakai kb_mode dkk
 
 job_lock = asyncio.Lock()
 sessions = {}
+_user_async_locks = {}
+_user_click_timestamps = {}
+
+
+def get_user_lock(uid: int) -> asyncio.Lock:
+    if uid not in _user_async_locks:
+        _user_async_locks[uid] = asyncio.Lock()
+    return _user_async_locks[uid]
+
+
+def is_spam_click(uid: int, cooldown_sec: float = 2.0) -> bool:
+    """Cek apakah tombol ditekan berulang kali dalam jeda waktu singkat (anti-double-click)."""
+    now = time.time()
+    last = _user_click_timestamps.get(uid, 0.0)
+    if now - last < cooldown_sec:
+        return True
+    _user_click_timestamps[uid] = now
+    return False
+
+
+def proses_user_aktif(uid: int) -> tuple[str, str] | None:
+    """Cek apakah user masih memiliki proses aktif yang sedang berjalan.
+    Mengembalikan (tipe_proses, pesan_keterangan) atau None jika tidak ada proses aktif.
+    """
+    uid_str = str(uid)
+    s = sessions.get(uid) or {}
+
+    # 1. Cek apakah video user sedang aktif digenerate oleh worker / task lokal
+    sedang = antrean.sedang_diproses()
+    if sedang and str(sedang.get("uid")) == uid_str:
+        return (
+            "video_generating",
+            "⚠️ *Masih ada video kamu yang sedang diproses!* Mohon tunggu sampai selesai dulu ya, jangan membuat atau mengklik proses baru."
+        )
+
+    vt = s.get("video_task")
+    if vt and not vt.done() and not vt.cancelled():
+        return (
+            "video_generating",
+            "⚠️ *Masih ada video kamu yang sedang diproses!* Mohon tunggu sampai selesai dulu ya, jangan membuat atau mengklik proses baru."
+        )
+
+    if s.get("is_generating_video"):
+        return (
+            "video_generating",
+            "⚠️ *Masih ada video kamu yang sedang diproses!* Mohon tunggu sampai selesai dulu ya, jangan membuat atau mengklik proses baru."
+        )
+
+    # 2. Cek apakah user sedang menunggu di antrean
+    pos = antrean.posisi_antrean(uid)
+    if pos > 0:
+        menit = antrean.estimasi_waktu()
+        return (
+            "antrean_waiting",
+            f"⏳ *Kamu masih memiliki antrean video yang belum selesai (Posisi #{pos}, estimasi ~{menit} menit)!* Mohon tunggu giliranmu ya, jangan membuat antrean baru."
+        )
+
+    # 3. Cek apakah produksi storyboard / katalog awal masih berjalan
+    pt = s.get("produksi_task")
+    if pt and not pt.done() and not pt.cancelled():
+        return (
+            "storyboard_producing",
+            "⚠️ *Masih ada proses pembuatan storyboard / katalog yang sedang berjalan!* Mohon tunggu sebentar sampai prosesnya selesai ya."
+        )
+
+    if s.get("is_producing_storyboard"):
+        return (
+            "storyboard_producing",
+            "⚠️ *Masih ada proses pembuatan storyboard / katalog yang sedang berjalan!* Mohon tunggu sebentar sampai prosesnya selesai ya."
+        )
+
+    return None
 
 STYLES = {"ugc": "\U0001F4F1 UGC Natural", "sinematik": "\U0001F3AC Sinematik",
           "studio": "\u2728 Studio Iklan Clean", "aesthetic": "\U0001F338 Aesthetic Pastel"}
@@ -66,10 +138,15 @@ FRAMES = {"fullbody": "\U0001F9CD Full Body", "setengah": "\U0001F464 Setengah B
 
 
 def new_session(uid: int) -> dict:
+    old = sessions.get(uid) or {}
     s = {"produk": "", "deskripsi": "", "kandidat": [],
          "style": "ugc", "audio": "vo", "framing": "tangan",
          "durasi": 8, "board": None, "frames": [],
-         "status_id": None, "workdir": None, "katalog": None}
+         "status_id": None, "workdir": None, "katalog": None,
+         "video_task": old.get("video_task"),
+         "is_generating_video": old.get("is_generating_video", False),
+         "produksi_task": old.get("produksi_task"),
+         "is_producing_storyboard": old.get("is_producing_storyboard", False)}
     sessions[uid] = s
     return s
 
@@ -553,6 +630,22 @@ async def menu_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if s is None:
         return ConversationHandler.END
     if q.data == "menu:generate":
+        aktif = proses_user_aktif(q.from_user.id)
+        if aktif:
+            tipe, pesan = aktif
+            popup_pesan = "⚠️ Masih ada proses yang belum selesai, tunggu dulu!"
+            if tipe in ("video_generating", "antrean_waiting"):
+                pos = antrean.posisi_antrean(q.from_user.id)
+                pos_txt = f" (Posisi antrean #{pos})" if pos > 0 else ""
+                popup_pesan = f"⚠️ Masih ada video yang sedang diproses{pos_txt}! Tunggu sampai selesai ya."
+            elif tipe == "storyboard_producing":
+                popup_pesan = "⚠️ Masih ada proses storyboard yang sedang berjalan! Tunggu sebentar ya."
+            try:
+                await q.answer(popup_pesan, show_alert=True)
+            except Exception:
+                pass
+            await say(context, q.message.chat_id, s, pesan, fresh=True)
+            return MENU
         await bersihkan_progress_basi(context, q.message.chat_id, s, lewati_id=q.message.message_id)
     s["status_id"] = q.message.message_id
     # FASE 4: tombol menu utama
@@ -864,8 +957,18 @@ async def foto_diterima(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def foto_ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tombol Generate Katalog AI -> tampilkan disclaimer dulu."""
     q = update.callback_query
+    uid = q.from_user.id
+    aktif = proses_user_aktif(uid)
+    if aktif:
+        _, pesan = aktif
+        try:
+            await q.answer("⚠️ Masih ada proses yang belum selesai, tunggu dulu!", show_alert=True)
+        except Exception:
+            pass
+        await say(context, q.message.chat_id, get_session(uid), pesan, fresh=True)
+        return
     await q.answer()
-    s = get_session(q.from_user.id)
+    s = get_session(uid)
     s["status_id"] = q.message.message_id
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("\u2705 Lanjut, Generate", callback_data="foto:ai_ok")],
@@ -921,8 +1024,18 @@ async def foto_keep(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def foto_web(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cari katalog yang mirip di web (Shopee/Tokopedia/dll)."""
     q = update.callback_query
+    uid = q.from_user.id
+    aktif = proses_user_aktif(uid)
+    if aktif:
+        _, pesan = aktif
+        try:
+            await q.answer("⚠️ Masih ada proses yang belum selesai, tunggu dulu!", show_alert=True)
+        except Exception:
+            pass
+        await say(context, q.message.chat_id, get_session(uid), pesan, fresh=True)
+        return
     await q.answer()
-    s = get_session(q.from_user.id)
+    s = get_session(uid)
     chat_id = q.message.chat_id
     s["status_id"] = q.message.message_id
     await q.edit_message_text(
@@ -1172,6 +1285,8 @@ async def varian_picked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def produksi_awal(context, chat_id: int, s: dict):
     workdir = Path(s["workdir"])
     flow = FlowClient(FLOW_BASE, FLOW_KEY)
+    s["is_producing_storyboard"] = True
+    s["produksi_task"] = asyncio.current_task()
     async with job_lock:
         try:
             if not s.get("katalog"):
@@ -1305,6 +1420,9 @@ async def produksi_awal(context, chat_id: int, s: dict):
                       "\u26a0\ufe0f Waduh, gagal di tengah jalan (timed out).\n\n"
                       "Biasanya karena server AI lagi lambat. Mau coba lagi?",
                       reply_markup=kb_gagal)
+        finally:
+            s["is_producing_storyboard"] = False
+            s["produksi_task"] = None
 
 
 async def gas_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1377,90 +1495,136 @@ async def gas_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """FASE 2: setelah user approve sheet -> pilih tier -> masuk antrean.
     Worker (antrean_worker) yang generate satu per satu."""
     q = update.callback_query
-    await q.answer()
     uid = q.from_user.id
     chat_id = q.message.chat_id
     s = sessions.get(uid)
     if await tolak_kalau_ban(update, context):
         return
     if q.data == "gas:menu":
+        await q.answer()
         return await menu_utama_cb(update, context)
-    if q.data == "gas:retry":
-        await q.answer("Siap, coba lagi...")
-        if not s or not s.get("board") or not s.get("katalog_hd"):
-            await say(context, chat_id, s or {},
-                      "\u26a0\ufe0f Sesi produksi sudah tidak valid. "
-                      "Mulai lagi dari Menu Utama ya.",
-                      reply_markup=InlineKeyboardMarkup(
-                          [[InlineKeyboardButton("\U0001F3E0 Menu Utama",
-                                                 callback_data="gas:menu")]]))
-            return
-        await say(context, chat_id, s,
-                  "\U0001F504 Oke, coba lagi dari awal ya...", fresh=True)
-        asyncio.create_task(produksi_awal(context, chat_id, s))
-        return
     if q.data == "gas:batal" or not s or not s.get("frames"):
+        await q.answer()
         try:
             await q.edit_message_caption(caption=ft("\u274c Dibatalkan."))
         except Exception:
             pass
         return
     if q.data == "gas:batal_antri":
+        await q.answer()
         if antrean.batal_antrean(uid):
             try:
                 await q.message.delete()
             except Exception:
                 pass
-            await say(context, chat_id, s, "❌ Antreanmu berhasil dibatalkan.", fresh=True)
+            await say(context, chat_id, s or {}, "❌ Antreanmu berhasil dibatalkan.", fresh=True)
             asyncio.create_task(_update_posisi_antrean_semua(context.application))
         else:
-            await say(context, chat_id, s,
+            await say(context, chat_id, s or {},
                       "⚠️ Antreanmu sudah mulai diproses, tidak bisa dibatalkan.",
                       fresh=True)
         return
-    if q.data.startswith("gas:tier:"):
-        tier = q.data.split(":")[2]
-        _seg = max(1, int(s.get("durasi", 8)) // 8)
-        if not(is_admin(uid) or billing.is_unlimited(uid)):
-            if billing.get_saldo(uid)<billing.harga_video_segmen(uid,tier,_seg):
-                kb=InlineKeyboardMarkup([
-                [InlineKeyboardButton(chr(0x1F4B3)+" Topup",callback_data="menu:topup")],
-                [InlineKeyboardButton(chr(0x1F3E0)+" Menu",callback_data="menu:utama")]])
-                await q.edit_message_text(chr(0x1F4B0)+" Saldo kurang.",reply_markup=kb)
-                return
-        await _gas_masuk_antrean(context, chat_id, s, uid, tier)
-        return
-    # FITUR B: konfirmasi dulu sebelum tier / antrean
-    if q.data == "gas:video" or q.data == "gas:kembali":
-        await _tampilkan_konfirmasi(update, context, s)
-        return
     if q.data == "gas:edit":
+        await q.answer()
         await _tampilkan_menu_edit(update, context, s)
         return
-    if q.data != "gas:go":
+    if q.data == "gas:kembali":
+        await q.answer()
+        await _tampilkan_konfirmasi(update, context, s)
         return
-    # "gas:go": admin / unlimited langsung antre prioritas tanpa pilih tier
-    # MASTER SWITCH: mode non-komersial -> skip pilih tier dan antrean.
-    if not billing.komersial_aktif():
-        await _gas_masuk_antrean(context, chat_id, s, uid, "reguler", gratis=True)
+
+    # AKSI GENERATE / SUBMIT / RETRY:
+    # 1. Anti double-click / klik berulang kali
+    if is_spam_click(uid, 2.0):
+        try:
+            await q.answer("⚠️ Tombol sudah ditekan sebelumnya, mohon tunggu sebentar...", show_alert=True)
+        except Exception:
+            pass
         return
-    if is_admin(uid) or billing.is_unlimited(uid):
-        await _gas_masuk_antrean(context, chat_id, s, uid, "prioritas",
-                                 gratis=True)
+
+    # 2. Cek apakah masih ada proses aktif yang sedang berjalan
+    aktif = proses_user_aktif(uid)
+    if aktif:
+        tipe, pesan = aktif
+        popup_pesan = "⚠️ Masih ada proses yang belum selesai, tunggu dulu!"
+        if tipe in ("video_generating", "antrean_waiting"):
+            pos = antrean.posisi_antrean(uid)
+            pos_txt = f" (Posisi antrean #{pos})" if pos > 0 else ""
+            popup_pesan = f"⚠️ Masih ada video yang sedang diproses{pos_txt}! Tunggu dulu sampai selesai ya."
+        elif tipe == "storyboard_producing":
+            popup_pesan = "⚠️ Masih ada proses storyboard yang sedang berjalan! Tunggu sebentar ya."
+        try:
+            await q.answer(popup_pesan, show_alert=True)
+        except Exception:
+            pass
+        await say(context, chat_id, s or {}, pesan, fresh=True)
         return
-    _segmen = max(1, int(s.get("durasi", 8)) // 8)
-    kb_tier = InlineKeyboardMarkup([
-        [InlineKeyboardButton(chr(0x1F4E6)+" %s - Reguler" % billing.rp(billing.harga_video_segmen(uid, "reguler", _segmen)),
-                              callback_data="gas:tier:reguler")],
-        [InlineKeyboardButton(chr(0x26A1)+" %s - Prioritas" % billing.rp(billing.harga_video_segmen(uid, "prioritas", _segmen)),
-                              callback_data="gas:tier:prioritas")],
-    ])
-    await say(context, chat_id, s,
-              "Pilih tier generate:\n"
-              "Reguler = antre biasa.\n"
-              "Prioritas = dikerjakan duluan.",
-              reply_markup=kb_tier, fresh=True)
-    return
+
+    user_lock = get_user_lock(uid)
+    if user_lock.locked():
+        try:
+            await q.answer("⚠️ Masih ada proses yang belum selesai, tunggu dulu!", show_alert=True)
+        except Exception:
+            pass
+        return
+
+    async with user_lock:
+        if q.data == "gas:retry":
+            await q.answer("Siap, coba lagi...")
+            if not s or not s.get("board") or not s.get("katalog_hd"):
+                await say(context, chat_id, s or {},
+                          "\u26a0\ufe0f Sesi produksi sudah tidak valid. "
+                          "Mulai lagi dari Menu Utama ya.",
+                          reply_markup=InlineKeyboardMarkup(
+                              [[InlineKeyboardButton("\U0001F3E0 Menu Utama",
+                                                     callback_data="gas:menu")]]))
+                return
+            await say(context, chat_id, s,
+                      "\U0001F504 Oke, coba lagi dari awal ya...", fresh=True)
+            asyncio.create_task(produksi_awal(context, chat_id, s))
+            return
+
+        if q.data == "gas:video":
+            await q.answer()
+            await _tampilkan_konfirmasi(update, context, s)
+            return
+        if q.data.startswith("gas:tier:"):
+            await q.answer()
+            tier = q.data.split(":")[2]
+            _seg = max(1, int(s.get("durasi", 8)) // 8)
+            if not(is_admin(uid) or billing.is_unlimited(uid)):
+                if billing.get_saldo(uid)<billing.harga_video_segmen(uid,tier,_seg):
+                    kb=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(chr(0x1F4B3)+" Topup",callback_data="menu:topup")],
+                    [InlineKeyboardButton(chr(0x1F3E0)+" Menu",callback_data="menu:utama")]])
+                    await q.edit_message_text(chr(0x1F4B0)+" Saldo kurang.",reply_markup=kb)
+                    return
+            await _gas_masuk_antrean(context, chat_id, s, uid, tier)
+            return
+        if q.data == "gas:go":
+            await q.answer()
+            # "gas:go": admin / unlimited langsung antre prioritas tanpa pilih tier
+            # MASTER SWITCH: mode non-komersial -> skip pilih tier dan antrean.
+            if not billing.komersial_aktif():
+                await _gas_masuk_antrean(context, chat_id, s, uid, "reguler", gratis=True)
+                return
+            if is_admin(uid) or billing.is_unlimited(uid):
+                await _gas_masuk_antrean(context, chat_id, s, uid, "prioritas",
+                                         gratis=True)
+                return
+            _segmen = max(1, int(s.get("durasi", 8)) // 8)
+            kb_tier = InlineKeyboardMarkup([
+                [InlineKeyboardButton(chr(0x1F4E6)+" %s - Reguler" % billing.rp(billing.harga_video_segmen(uid, "reguler", _segmen)),
+                                      callback_data="gas:tier:reguler")],
+                [InlineKeyboardButton(chr(0x26A1)+" %s - Prioritas" % billing.rp(billing.harga_video_segmen(uid, "prioritas", _segmen)),
+                                      callback_data="gas:tier:prioritas")],
+            ])
+            await say(context, chat_id, s,
+                      "Pilih tier generate:\n"
+                      "Reguler = antre biasa.\n"
+                      "Prioritas = dikerjakan duluan.",
+                      reply_markup=kb_tier, fresh=True)
+            return
 
 
 
@@ -1567,6 +1731,11 @@ async def _proses_antrean(app, job):
     s = dict(jd)
     s["status_id"] = None
     sess = sessions.get(uid)
+    if isinstance(sess, dict):
+        sess["is_generating_video"] = True
+    s["is_generating_video"] = True
+    if not antrean.sedang_diproses():
+        antrean._sedang_diproses = job
     workdir = Path(s["workdir"])
     flow = FlowClient(FLOW_BASE, FLOW_KEY)
     stop_prog = None
@@ -1777,8 +1946,11 @@ async def _proses_antrean(app, job):
                       reply_markup=kb_gagal_video, fresh=True)
             await _update_posisi_antrean_semua(app)
     finally:
+        antrean.selesai_diproses()
         if isinstance(sess, dict):
             sess["video_task"] = None
+            sess["is_generating_video"] = False
+        s["is_generating_video"] = False
         if stop_prog is not None:
             stop_prog.set()
         if prog_task is not None:
@@ -2485,16 +2657,24 @@ def main():
 
 
 async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
+    # Cek apakah user memiliki proses aktif
+    aktif = proses_user_aktif(uid)
+    if aktif:
+        _, pesan = aktif
+        await say(context, chat_id, s or {}, pesan, fresh=True)
+        return
+
     # MASTER SWITCH: non-komersial -> skip tier/saldo/antrean, langsung generate (1 sesi job_lock).
     if not billing.komersial_aktif():
-        if job_lock.locked():
-            msg_nonaktif = ("Mode komersial nonaktif. Lagi ada yang generate, "
-                            "tunggu sebentar ya. Tetap 1 sesi dalam satu waktu "
-                            "demi keamanan (anti-ban).")
-        else:
-            msg_nonaktif = ("Mode komersial nonaktif: generate langsung tanpa pilih "
-                            "tier, tanpa potong saldo, dan tanpa antrean. Tetap 1 sesi "
-                            "dalam satu waktu demi keamanan (anti-ban).")
+        if s.get("is_generating_video") or job_lock.locked():
+            await say(context, chat_id, s or {},
+                      "⚠️ *Masih ada proses generate video yang sedang berjalan!* Mohon tunggu sampai videomu selesai diproses ya, jangan membuat proses baru.",
+                      fresh=True)
+            return
+
+        msg_nonaktif = ("Mode komersial nonaktif: generate langsung tanpa pilih "
+                        "tier, tanpa potong saldo, dan tanpa antrean. Tetap 1 sesi "
+                        "dalam satu waktu demi keamanan (anti-ban).")
         await say(context, chat_id, s, msg_nonaktif, fresh=True)
         # FIX routing: Gas Bikin Video -> alur generate video
         # (_proses_antrean), bukan mengulang produksi_awal (enhance katalog).
@@ -2513,15 +2693,19 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
             "board": s.get("board"),
             "antrean_msg_id": s.get("status_id"),
         }
-        async with job_lock:
-            await _proses_antrean(
-                context.application, {"uid": uid, "job_data": job_data})
+        s["is_generating_video"] = True
+        try:
+            async with job_lock:
+                await _proses_antrean(
+                    context.application, {"uid": uid, "job_data": job_data})
+        finally:
+            s["is_generating_video"] = False
         return
     tier = "prioritas" if tier == "prioritas" else "reguler"
     pos_lama = antrean.posisi_antrean(uid)
     if pos_lama:
         await say(context, chat_id, s,
-                  "⏳ Kamu sudah di antrean. Posisi *#%d* (estimasi ~%d menit)."
+                  "⏳ Kamu sudah di antrean. Posisi *#%d* (estimasi ~%d menit). Tunggu sampai giliranmu ya!"
                   % (pos_lama, antrean.estimasi_waktu()),
                   parse_mode="Markdown", fresh=True)
         return
@@ -3328,14 +3512,45 @@ def _mode_admin_aktif(update: Update) -> bool:
 
 async def _boleh_masuk_produksi(update: Update, context: ContextTypes.DEFAULT_TYPE,
                                 s: dict, chat_id: int) -> bool:
-    """Ban check + anti-spam flow2api. True kalau boleh lanjut produksi."""
+    """Ban check + anti-spam flow2api + cek proses aktif. True kalau boleh lanjut produksi."""
     if await tolak_kalau_ban(update, context):
         return False
-    ok, msg = boleh_produksi(update.effective_user.id)
+
+    uid = update.effective_user.id
+
+    # 1. Anti double-click tombol
+    if is_spam_click(uid, 2.0):
+        if update.callback_query:
+            try:
+                await update.callback_query.answer("⚠️ Tombol sudah ditekan sebelumnya, mohon tunggu sebentar...", show_alert=True)
+            except Exception:
+                pass
+        return False
+
+    # 2. Cek apakah user sedang memiliki proses aktif yang belum selesai
+    aktif = proses_user_aktif(uid)
+    if aktif:
+        tipe, pesan = aktif
+        popup_pesan = "⚠️ Masih ada proses yang belum selesai, tunggu dulu!"
+        if tipe in ("video_generating", "antrean_waiting"):
+            pos = antrean.posisi_antrean(uid)
+            pos_txt = f" (Posisi antrean #{pos})" if pos > 0 else ""
+            popup_pesan = f"⚠️ Masih ada video yang sedang diproses{pos_txt}! Tunggu sampai selesai ya."
+        elif tipe == "storyboard_producing":
+            popup_pesan = "⚠️ Masih ada proses storyboard yang sedang berjalan! Tunggu sebentar ya."
+        if update.callback_query:
+            try:
+                await update.callback_query.answer(popup_pesan, show_alert=True)
+            except Exception:
+                pass
+        await say(context, chat_id, s, pesan, fresh=True)
+        return False
+
+    ok, msg = boleh_produksi(uid)
     if not ok:
         await say(context, chat_id, s, msg, fresh=True)
         return False
-    catat_produksi(update.effective_user.id)
+    catat_produksi(uid)
     return True
 
 if __name__ == "__main__":
