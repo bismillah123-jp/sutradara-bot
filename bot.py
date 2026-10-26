@@ -1327,15 +1327,22 @@ async def gas_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _progress_updater(q, expected_sec, stop_event):
     import time
     start = time.time()
+    expected_sec = max(20, int(expected_sec or 30))
     while not stop_event.is_set():
-        await asyncio.sleep(20)
+        await asyncio.sleep(15)
         if stop_event.is_set():
             break
         elapsed = time.time() - start
-        pct = min(90, int(elapsed / expected_sec * 100))
+        pct = min(92, int(elapsed / expected_sec * 100))
         bar = chr(9608) * (pct // 10) + chr(9617) * (10 - pct // 10)
+        sisa = max(5, expected_sec - int(elapsed))
+        teks = (
+            f"🔔 *Antrean Terpenuhi — Sedang Memproses Video!*\n\n"
+            f"🎬 Progress pembuatan video: *{pct}%*\n{bar}\n\n"
+            f"⏳ Estimasi sisa waktu: ~{sisa} detik lagi..."
+        )
         try:
-            await q.edit_message_text(ft(f"🎬 Bikin video... {pct}%\n{bar}"))
+            await q.edit_message_text(ft(teks))
         except Exception:
             pass
 
@@ -1400,10 +1407,15 @@ async def gas_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if q.data == "gas:batal_antri":
         if antrean.batal_antrean(uid):
-            await say(context, chat_id, s, "Antreanmu dibatalkan.", fresh=True)
+            try:
+                await q.message.delete()
+            except Exception:
+                pass
+            await say(context, chat_id, s, "❌ Antreanmu berhasil dibatalkan.", fresh=True)
+            asyncio.create_task(_update_posisi_antrean_semua(context.application))
         else:
             await say(context, chat_id, s,
-                      "Antreanmu sudah mulai diproses, tidak bisa dibatalkan.",
+                      "⚠️ Antreanmu sudah mulai diproses, tidak bisa dibatalkan.",
                       fresh=True)
         return
     if q.data.startswith("gas:tier:"):
@@ -1456,15 +1468,58 @@ async def gas_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 class _QShim:
     """Pengganti callback query untuk _progress_updater di worker antrean."""
 
-    def __init__(self, bot, chat_id, message_id):
+    def __init__(self, bot, chat_id, message_id, reply_markup=None):
         self._bot = bot
         self._chat_id = chat_id
         self._message_id = message_id
+        self._reply_markup = reply_markup
 
-    async def edit_message_text(self, text):
-        await self._bot.edit_message_text(chat_id=self._chat_id,
-                                          message_id=self._message_id,
-                                          text=text)
+    async def edit_message_text(self, text, reply_markup=None):
+        rm = reply_markup if reply_markup is not None else self._reply_markup
+        await self._bot.edit_message_text(
+            chat_id=self._chat_id,
+            message_id=self._message_id,
+            text=text,
+            reply_markup=rm,
+            parse_mode="Markdown",
+        )
+
+
+async def _update_posisi_antrean_semua(app):
+    """Update pesan antrean untuk semua user yang masih menunggu di antrean."""
+    try:
+        q = antrean._load()
+        for idx, item in enumerate(q):
+            uid = item.get("uid")
+            jd = item.get("job_data") or {}
+            chat_id = jd.get("chat_id") or uid
+            msg_id = jd.get("antrean_msg_id")
+            if not msg_id or not chat_id:
+                continue
+            pos = idx + (2 if antrean.sedang_diproses() else 1)
+            est = pos * 3
+            kb_batal = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Batalkan Antrian", callback_data="gas:batal_antri")]
+            ])
+            teks = (
+                f"⏳ *Update Antrean*\n\n"
+                f"Antrean di depanmu sudah selesai diproses!\n"
+                f"Posisi kamu sekarang: *#{pos}*\n"
+                f"Estimasi waktu: *~{est} menit*\n\n"
+                f"Mohon tunggu ya, giliranmu segera tiba! 🚀"
+            )
+            try:
+                await app.bot.edit_message_text(
+                    chat_id=int(chat_id),
+                    message_id=int(msg_id),
+                    text=ft(teks),
+                    parse_mode="Markdown",
+                    reply_markup=kb_batal,
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        log.warning("_update_posisi_antrean_semua gagal: %s", e)
 
 
 async def antrean_worker(app):
@@ -1516,22 +1571,56 @@ async def _proses_antrean(app, job):
     flow = FlowClient(FLOW_BASE, FLOW_KEY)
     stop_prog = None
     prog_task = None
+    prog_msg = None
     try:
-        m = await app.bot.send_message(
+        # 1. HAPUS PESAN ANTREAN LAMA DARI CHAT
+        old_msg_ids = set()
+        if jd.get("antrean_msg_id"):
+            old_msg_ids.add(jd["antrean_msg_id"])
+        if s.get("antrean_msg_id"):
+            old_msg_ids.add(s["antrean_msg_id"])
+        if s.get("status_id"):
+            old_msg_ids.add(s["status_id"])
+        for mid in jd.get("pesan_lama_ids", []):
+            if mid:
+                old_msg_ids.add(mid)
+        if isinstance(sess, dict):
+            if sess.get("antrean_msg_id"):
+                old_msg_ids.add(sess["antrean_msg_id"])
+            if sess.get("status_id"):
+                old_msg_ids.add(sess["status_id"])
+
+        for mid in old_msg_ids:
+            try:
+                await app.bot.delete_message(chat_id=chat_id, message_id=mid)
+            except Exception:
+                pass
+
+        # Beritahu / update semua antrean yang masih menunggu di belakang
+        await _update_posisi_antrean_semua(app)
+
+        # 2. KIRIM PEMBERITAHUAN RESMI: ANTREAN TERPENUHI & GILIRAN TIBA
+        kb_stop = InlineKeyboardMarkup([[
+            InlineKeyboardButton("❌ Batal Bikin Video", callback_data="gas:stop")
+        ]])
+        teks_mulai = (
+            "🔔 *Antreanmu Terpenuhi!*\n\n"
+            "Giliran kamu sudah tiba! 🚀\n"
+            "Video sedang diproduksi dari storyboard...\n"
+            "Mohon tunggu sebentar ya 🙏"
+        )
+        prog_msg = await app.bot.send_message(
             chat_id=chat_id,
-            text=ft(progress_ts("Giliranmu! Lagi dibikinin videonya...")))
-        s["status_id"] = m.message_id
-        q = _QShim(app.bot, chat_id, m.message_id)
+            text=ft(teks_mulai),
+            parse_mode="Markdown",
+            reply_markup=kb_stop,
+        )
+        s["status_id"] = prog_msg.message_id
         if isinstance(sess, dict):
             sess["video_task"] = asyncio.current_task()
-            # Simpan message_id progress di session asli
-            sess["status_id"] = m.message_id
-        kb_stop = InlineKeyboardMarkup([[
-            InlineKeyboardButton("\u274c Batal Bikin Video", callback_data="gas:stop")]])
-        await say(app, chat_id, s,
-                  progress_ts("\U0001F680 Siap, gas! Lagi gw bikinin videonya dari storyboard \u2014 "
-                  "ini bagian lama, sabar dikit ya \U0001F64F"),
-                  fresh=True, reply_markup=kb_stop)
+            sess["status_id"] = prog_msg.message_id
+
+        q = _QShim(app.bot, chat_id, prog_msg.message_id, reply_markup=kb_stop)
         board = s["board"]
         vprompt = build_video_prompt(board, s["produk"], s["durasi"],
                                      s["style"], s["audio"], s["framing"])
@@ -1550,10 +1639,35 @@ async def _proses_antrean(app, job):
                                                 seconds=s["durasi"], aspect="9:16",
                                             reference_images=[s["katalog_hd"]] if s.get("katalog_hd") else None)
             stop_prog.set()
+            if prog_task is not None:
+                prog_task.cancel()
+
             out = workdir / "final.mp4"
             out.write_bytes(mp4)
             s["video_task"] = None
-            await say(app, chat_id, s, "\U0001F389 Videonya jadi! Nih hasilnya:")
+            if isinstance(sess, dict):
+                sess["video_task"] = None
+
+            # Hapus pesan progress/status antrean agar chat bersih
+            if prog_msg:
+                try:
+                    await app.bot.delete_message(chat_id=chat_id, message_id=prog_msg.message_id)
+                except Exception:
+                    pass
+            s["status_id"] = None
+            if isinstance(sess, dict):
+                sess["status_id"] = None
+
+            # Kirim pemberitahuan resmi bahwa antrean sukses terpenuhi & video jadi
+            await app.bot.send_message(
+                chat_id=chat_id,
+                text=ft(
+                    "🎉 *Antrean Sukses Terpenuhi!*\n\n"
+                    "Video promosi produkmu sudah selesai dan siap digunakan! 🚀\n"
+                    "Hasil video ada di bawah ini 👇"
+                ),
+                parse_mode="Markdown",
+            )
             with open(out, "rb") as vf:
                 await app.bot.send_video(chat_id, video=vf,
                                          caption=ft("\U0001F3AC " + board["title"]))
@@ -1613,18 +1727,34 @@ async def _proses_antrean(app, job):
                 log.exception("riset caption gagal")
                 await say(app, chat_id, s,
                           "\U0001F605 Caption-nya gagal gw riset, tapi videonya udah jadi di atas \U0001F446")
+
+            # Update posisi antrean user lain setelah selesai
+            await _update_posisi_antrean_semua(app)
+
         except asyncio.CancelledError:
             s["video_task"] = None
-            await say(app, chat_id, s, "\u274c\ufe0f Pembuatan video udah dibatalkan.")
+            if prog_msg:
+                try:
+                    await app.bot.delete_message(chat_id=chat_id, message_id=prog_msg.message_id)
+                except Exception:
+                    pass
+            await say(app, chat_id, s, "\u274c\ufe0f Pembuatan video udah dibatalkan.", fresh=True)
+            await _update_posisi_antrean_semua(app)
         except Exception as e:
             log.exception("antrean gagal")
+            if prog_msg:
+                try:
+                    await app.bot.delete_message(chat_id=chat_id, message_id=prog_msg.message_id)
+                except Exception:
+                    pass
             kb_gagal_video = InlineKeyboardMarkup([
-                [InlineKeyboardButton(chr(0x1F504) + " Coba Lagi", callback_data="gas:retry")],
-                [InlineKeyboardButton(chr(0x1F3E0) + " Menu Utama", callback_data="gas:menu")],
+                [InlineKeyboardButton("\U0001F504 Coba Lagi", callback_data="gas:retry")],
+                [InlineKeyboardButton("\U0001F3E0 Menu Utama", callback_data="gas:menu")],
             ])
             await say(app, chat_id, s,
-                      chr(0x1F605) + f" Waduh, videonya gagal dibikin: {e}",
-                      reply_markup=kb_gagal_video)
+                      f"\U0001F605 Waduh, videonya gagal dibikin: {e}",
+                      reply_markup=kb_gagal_video, fresh=True)
+            await _update_posisi_antrean_semua(app)
     finally:
         if isinstance(sess, dict):
             sess["video_task"] = None
@@ -2360,6 +2490,7 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
             "durasi": s.get("durasi"),
             "frames": list(s.get("frames") or []),
             "board": s.get("board"),
+            "antrean_msg_id": s.get("status_id"),
         }
         async with job_lock:
             await _proses_antrean(
@@ -2369,9 +2500,9 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
     pos_lama = antrean.posisi_antrean(uid)
     if pos_lama:
         await say(context, chat_id, s,
-                  "Kamu sudah di antrean. Posisi #%d (estimasi %d menit)."
+                  "⏳ Kamu sudah di antrean. Posisi *#%d* (estimasi ~%d menit)."
                   % (pos_lama, antrean.estimasi_waktu()),
-                  fresh=True)
+                  parse_mode="Markdown", fresh=True)
         return
     # FASE 4: batasi generate harian untuk user unlimited
     if billing.is_unlimited(uid) and not is_admin(uid):
@@ -2388,6 +2519,11 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
                       % (billing.rp(bill_harga), billing.rp(billing.get_saldo(uid))),
                       fresh=True)
             return
+
+    pesan_lama = []
+    if s.get("status_id"):
+        pesan_lama.append(s["status_id"])
+
     job_data = {
         "chat_id": chat_id,
         "tier": tier,
@@ -2401,6 +2537,7 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
         "durasi": s.get("durasi"),
         "frames": list(s.get("frames") or []),
         "board": s.get("board"),
+        "pesan_lama_ids": pesan_lama,
     }
     # PANEL SETTINGS ADMIN: cek limit harian, jeda, max antrean (non-admin)
     if not is_admin(uid):
@@ -2422,12 +2559,18 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
         billing.catat_unlimited_harian(uid)  # FASE 4: kuota harian unlimited
     est = antrean.estimasi_waktu()
     kb_batal = InlineKeyboardMarkup([
-        [InlineKeyboardButton("\u274c Batalkan Antrian",
+        [InlineKeyboardButton("❌ Batalkan Antrian",
                               callback_data="gas:batal_antri")]])
-    await say(context, chat_id, s,
-              "Masuk antrean! Posisi #%d (estimasi %d menit). Tunggu ya."
+    m_antri = await say(context, chat_id, s,
+              "⏳ *Masuk antrean!*\n\n"
+              "Posisi kamu: *#%d*\n"
+              "Estimasi tunggu: *~%d menit*\n\n"
+              "Santai dulu ya, nanti ada notifikasi otomatis kalau antreanmu terpenuhi! 🔔"
               % (pos, est),
-              reply_markup=kb_batal, fresh=True)
+              reply_markup=kb_batal, parse_mode="Markdown", fresh=True)
+    if m_antri and hasattr(m_antri, "message_id"):
+        s["antrean_msg_id"] = m_antri.message_id
+        antrean.update_job_data(uid, {"antrean_msg_id": m_antri.message_id})
 
 
 async def komersial_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

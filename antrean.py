@@ -84,6 +84,25 @@ def ambil_berikutnya():
     return job
 
 
+def sedang_diproses():
+    return _sedang_diproses
+
+
+def update_job_data(uid, extra_data: dict):
+    """Update job_data untuk user di antrean."""
+    q = _load()
+    changed = False
+    for j in q:
+        if str(j.get("uid")) == str(uid):
+            jd = j.get("job_data") or {}
+            jd.update(extra_data)
+            j["job_data"] = jd
+            changed = True
+            break
+    if changed:
+        _save(q)
+
+
 def selesai_diproses():
     global _sedang_diproses
     _sedang_diproses = None
