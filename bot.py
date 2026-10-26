@@ -1584,6 +1584,20 @@ async def gas_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             asyncio.create_task(produksi_awal(context, chat_id, s))
             return
 
+        if q.data == "gas:retry_video":
+            await q.answer("Siap, mengulang proses video...")
+            if not s or not s.get("board") or not s.get("frames"):
+                await say(context, chat_id, s or {},
+                          "⚠️ Data storyboard tidak ditemukan. Silakan buat storyboard baru ya.",
+                          reply_markup=InlineKeyboardMarkup(
+                              [[InlineKeyboardButton("🏠 Menu Utama", callback_data="gas:menu")]]))
+                return
+            tier = s.get("tier", "reguler")
+            is_gratis = not billing.komersial_aktif() or is_admin(uid) or billing.is_unlimited(uid)
+            await say(context, chat_id, s, "🔄 Mengulang generate video langsung dari storyboard...", fresh=True)
+            await _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=is_gratis)
+            return
+
         if q.data == "gas:video":
             await q.answer()
             await _tampilkan_konfirmasi(update, context, s)
@@ -1802,7 +1816,9 @@ async def _proses_antrean(app, job):
                 mp4 = await flow.generate_video(vprompt, frames,
                                                 seconds=s["durasi"], aspect="9:16",
                                             reference_images=[s["katalog_hd"]] if s.get("katalog_hd") else None)
-            except Exception:
+            except Exception as ex_gen:
+                log.warning("generate_video awal gagal (%s), jeda 3s sebelum mencoba fallback...", ex_gen)
+                await asyncio.sleep(3)
                 # fallback: frame pertama saja
                 mp4 = await flow.generate_video(vprompt, frames[:1],
                                                 seconds=s["durasi"], aspect="9:16",
@@ -1867,12 +1883,12 @@ async def _proses_antrean(app, job):
                 if lines:
                     await app.bot.send_message(
                         chat_id,
-                        ft("🗣️ *Skrip Narasi / Voiceover Video (Tersinkronisasi)*\n\n"
-                           "Skrip berikut sudah disinkronkan langsung ke dalam video di atas:\n\n"
-                           "📋 *Teks Lengkap:*\n"
+                        ft("🗣️ *Skrip Narasi / Voiceover Video*\n\n"
+                           "Gunakan skrip narasi resmi ini untuk voiceover di TikTok / CapCut:\n\n"
+                           "📋 *Teks Lengkap (Tinggal Tap & Copy):*\n"
                            f"```\n{full}\n```\n\n"
                            "⏱️ *Rincian per Beat Scene:*\n" + "\n".join(lines) + "\n\n"
-                           "💡 *Tip:* Kamu juga bisa gunakan teks di atas untuk auto-caption / subtitle di CapCut atau TikTok!"),
+                           "💡 *Tip:* Kamu bisa langsung paste teks di atas ke fitur Text-to-Speech TikTok atau auto-caption di CapCut!"),
                         parse_mode="Markdown")
             elif s.get("audio") == "asmr_vo":
                 scenes = board["scenes"]
@@ -1938,11 +1954,14 @@ async def _proses_antrean(app, job):
                 except Exception:
                     pass
             kb_gagal_video = InlineKeyboardMarkup([
-                [InlineKeyboardButton("\U0001F504 Coba Lagi", callback_data="gas:retry")],
-                [InlineKeyboardButton("\U0001F3E0 Menu Utama", callback_data="gas:menu")],
+                [InlineKeyboardButton("🔄 Coba Generate Lagi", callback_data="gas:retry_video")],
+                [InlineKeyboardButton("🎬 Bikin Ulang Storyboard", callback_data="gas:retry")],
+                [InlineKeyboardButton("🏠 Menu Utama", callback_data="gas:menu")],
             ])
             await say(app, chat_id, s,
-                      f"\U0001F605 Waduh, videonya gagal dibikin: {e}",
+                      f"😅 Waduh, videonya gagal dibikin:\n`{e}`\n\n"
+                      f"Storyboard dan rancangan videomu masih tersimpan aman! "
+                      f"Kamu bisa langsung tap tombol *Coba Generate Lagi* di bawah tanpa perlu bikin storyboard dari awal.",
                       reply_markup=kb_gagal_video, fresh=True)
             await _update_posisi_antrean_semua(app)
     finally:
@@ -2691,6 +2710,8 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
             "durasi": s.get("durasi"),
             "frames": list(s.get("frames") or []),
             "board": s.get("board"),
+            "katalog_hd": s.get("katalog_hd"),
+            "katalog": s.get("katalog"),
             "antrean_msg_id": s.get("status_id"),
         }
         s["is_generating_video"] = True
@@ -2742,6 +2763,8 @@ async def _gas_masuk_antrean(context, chat_id, s, uid, tier, gratis=False):
         "durasi": s.get("durasi"),
         "frames": list(s.get("frames") or []),
         "board": s.get("board"),
+        "katalog_hd": s.get("katalog_hd"),
+        "katalog": s.get("katalog"),
         "pesan_lama_ids": pesan_lama,
     }
     # PANEL SETTINGS ADMIN: cek limit harian, jeda, max antrean (non-admin)

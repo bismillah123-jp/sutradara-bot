@@ -73,21 +73,21 @@ FRAME_HINT = {
 }
 
 AUDIO_LABEL = {
-    "vo": "voice over Bahasa Indonesia (narasi diucapkan di dalam video)",
-    "vo_id": "voice over Bahasa Indonesia (narasi diucapkan di dalam video)",
-    "vo_en": "voice over Bahasa Inggris (narasi diucapkan di dalam video)",
+    "vo": "voice over Bahasa Indonesia (skrip narasi untuk video)",
+    "vo_id": "voice over Bahasa Indonesia (skrip narasi untuk video)",
+    "vo_en": "voice over Bahasa Inggris (skrip narasi untuk video)",
     "asmr": "ASMR murni, TANPA voice over, TANPA bicara (hanya suara produk)",
     "musik": "musik latar saja, TANPA voice over, TANPA bicara",
     "asmr_vo": "ASMR di video + voice over manual (TETAP tulis narasi sebagai skrip VO)",
 }
 
 AUDIO_HINT = {
-    "vo": "AUDIO: Cheerful natural voiceover speaking in Indonesian about the product benefits.",
-    "vo_id": "AUDIO: Cheerful natural voiceover speaking in Indonesian about the product benefits.",
-    "vo_en": "AUDIO: Energetic natural English voiceover speaking in clear fluent English about the product benefits.",
-    "asmr": "AUDIO: Pure ASMR product foley audio only (crisp clicking, tapping, uncapping, texture sounds, ambient silence). Strictly zero human speech, zero voiceover, no spoken dialogue, completely silent vocals.",
-    "asmr_vo": "AUDIO: Pure ASMR product foley audio only (crisp clicking, tapping, uncapping, texture sounds). Zero spoken words in video, silent vocals.",
-    "musik": "AUDIO: Upbeat trendy background music only. Zero human voice, no speech, no voiceover, silent vocals.",
+    "vo": "AUDIO & SOUND DESIGN: Authentic commercial product foley sound effects (crisp uncapping, tactile interaction, material texture sounds) and gentle aesthetic ambient room tone. Strictly silent vocals.",
+    "vo_id": "AUDIO & SOUND DESIGN: Authentic commercial product foley sound effects (crisp uncapping, tactile interaction, material texture sounds) and gentle aesthetic ambient room tone. Strictly silent vocals.",
+    "vo_en": "AUDIO & SOUND DESIGN: Authentic commercial product foley sound effects (crisp uncapping, tactile interaction, material texture sounds) and gentle aesthetic ambient room tone. Strictly silent vocals.",
+    "asmr": "AUDIO & FOLEY: Pure ASMR tactile foley sound effects only (crisp clicking, tapping, uncapping, texture sounds, ambient silence). Strictly zero human speech, zero voiceover, completely silent vocals.",
+    "asmr_vo": "AUDIO & FOLEY: Pure ASMR tactile foley sound effects only (crisp clicking, tapping, uncapping, texture sounds). Zero spoken words in video, silent vocals.",
+    "musik": "AUDIO & MUSIC: Trendy commercial background music beat and product sound effects. Zero human voice, no speech, silent vocals.",
 }
 
 def get_product_category(produk: str, deskripsi: str = "") -> str:
@@ -747,7 +747,6 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
 
         parts.append("SHOTS TO EXECUTE IN THIS 8-SECOND SEGMENT:")
         m = len(seg_scenes)
-        seg_dialogues = []
         for j, sc in enumerate(seg_scenes):
             shot_start = int(round(j * (8.0 / m)))
             shot_end = 8 if j == m - 1 else int(round((j + 1) * (8.0 / m)))
@@ -755,40 +754,30 @@ def build_segment_prompts(board: dict, produk: str, durasi: int,
             vis = sc.get("visual_prompt", "").strip() or sc.get("judul", "Showcase")
             act = sc.get("action", "").strip()
             cam = sc.get("camera_en", "").strip() or "Close-up, steady gimbal movement"
-            narasi = sc.get("narasi", "").strip()
 
             shot_desc = f"- Shot {shot_num} ({shot_start}-{shot_end}s in this segment): {vis}. Action: {act}. Camera: {cam}."
-            if narasi and audio not in ("asmr", "musik", "asmr_vo"):
-                shot_desc += f' Spoken dialogue/voiceover: "{narasi}".'
-                seg_dialogues.append(f'Shot {shot_num} ({shot_start}-{shot_end}s): "{narasi}"')
             parts.append(shot_desc)
 
-        if audio in ("asmr", "musik", "asmr_vo"):
+        if audio in ("asmr", "asmr_vo"):
             parts.append(
-                "AUDIO & VOCALS (SILENT VOCALS LOCK):\n"
-                "- Strictly zero human speech, zero singing, zero talking.\n"
-                "- The subject does NOT speak and keeps their mouth closed or relaxed.\n"
-                "- Audio contains NO voiceover, only ambient product foley sounds and realistic environmental audio."
+                "AUDIO & FOLEY (PURE ASMR):\n"
+                "- High-fidelity tactile product foley only: crisp clicking, tapping, uncapping, spritzing, and material textures.\n"
+                "- Intimate acoustic proximity, pure clean environmental sound.\n"
+                "- Strictly zero human speech, zero singing, zero voiceover, completely silent vocals."
             )
-        elif audio in ("vo", "vo_id", "vo_en") and seg_dialogues:
-            lang = "English" if audio == "vo_en" else "Indonesian"
-            combined_script = " ".join([sc.get("narasi", "").strip() for sc in seg_scenes if sc.get("narasi", "").strip()])
-            dialogue_timing = "\n".join(f"- {d}" for d in seg_dialogues)
+        elif audio == "musik":
             parts.append(
-                f"AUDIO & EXACT SPOKEN SCRIPT LOCK ({lang.upper()} VOICEOVER):\n"
-                f"The video MUST feature fluent, natural {lang} voiceover reciting the EXACT storyboard script below.\n"
-                f'MANDATORY WORD-FOR-WORD SCRIPT TO RECITE:\n'
-                f'"{combined_script}"\n\n'
-                f"Shot-by-shot script timing:\n{dialogue_timing}\n\n"
-                f"CRITICAL VOICEOVER REQUIREMENTS:\n"
-                f"1. RECITE EXACT WORDS: Spoken dialogue and voiceover MUST match the exact words written above word-for-word. "
-                f"DO NOT change words, DO NOT invent alternative sentences, and DO NOT hallucinate random speech.\n"
-                f"2. LANGUAGE: Must be spoken in clear, authentic {lang}. DO NOT speak in any other language.\n"
-                f"3. SYNCHRONIZATION: The spoken voiceover timing and character mouth/lip movement (if face is visible) "
-                f"must strictly align with the script timing above."
+                "AUDIO & MUSIC:\n"
+                "- Modern upbeat aesthetic commercial background music beat with crisp tactile product foley.\n"
+                "- Strictly zero human voice, zero speech, silent vocals."
             )
-        elif audio_desc:
-            parts.append(audio_desc)
+        else:
+            # vo, vo_id, vo_en, or default commercial: clean foley + silent vocals
+            parts.append(
+                "AUDIO & SOUND DESIGN:\n"
+                "- Authentic commercial product sound effects (crisp uncapping, spray mist, tactile handling, studio ambiance).\n"
+                "- Strictly silent vocals, mouth closed or relaxed, zero speech distortion or artificial babble."
+            )
 
         parts.append(cat_directive)
         parts.append(APPLICATION_EFFECT_LOCK)

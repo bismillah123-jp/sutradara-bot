@@ -13,12 +13,18 @@ MIGRASI VEO 3.1 FAST:
 import asyncio
 import base64
 import json
+import logging
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from typing import List, Optional
+
+log = logging.getLogger(__name__)
 
 
 def _mime(path: str) -> str:
@@ -99,18 +105,103 @@ def _image_model(aspect):
     return m.get(aspect, "gemini-3.1-flash-image-portrait")
 
 
+def _sanitize_prompt_for_audio_safety(body):
+    """Sanitize prompt text inside request body if upstream rejected due to AUDIO_FILTERED."""
+    try:
+        contents = body.get("contents", [])
+        for c in contents:
+            parts = c.get("parts", [])
+            for p in parts:
+                if "text" in p and isinstance(p["text"], str):
+                    t = p["text"]
+                    lines = []
+                    skip_block = False
+                    for line in t.split("\n"):
+                        l_upper = line.upper().strip()
+                        if "AUDIO & EXACT SPOKEN SCRIPT LOCK" in l_upper or "MANDATORY WORD-FOR-WORD SCRIPT" in l_upper:
+                            skip_block = True
+                            continue
+                        if skip_block:
+                            if any(l_upper.startswith(k) for k in ("CRITICAL", "CATEGORY", "MOTION", "ANATOMY", "STYLE", "FINAL")):
+                                skip_block = False
+                            else:
+                                continue
+                        if "Spoken dialogue/voiceover:" in line:
+                            idx = line.find("Spoken dialogue/voiceover:")
+                            line = line[:idx].strip()
+                        lines.append(line)
+                    cleaned = "\n".join(lines).strip()
+                    safe_audio = (
+                        "\n\nAUDIO & SOUND DESIGN:\n"
+                        "- Authentic commercial product sound effects (crisp uncapping, spray mist, tactile handling, studio ambiance).\n"
+                        "- Strictly silent vocals, mouth closed or relaxed, zero speech distortion or artificial babble."
+                    )
+                    p["text"] = cleaned + safe_audio
+    except Exception as ex:
+        log.warning("Gagal auto-sanitize prompt: %s", ex)
+
+
 class FlowClient:
     def __init__(self, base, api_key):
         self.base = base.rstrip("/")
         self.key = api_key
 
-    def _post(self, path, body, timeout=180):
-        req = urllib.request.Request(
-            self.base + path, data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json",
-                     "Authorization": "Bearer " + self.key})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.load(r)
+    def _post(self, path, body, timeout=180, max_retries=3):
+        url = self.base + path
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            req_data = json.dumps(body).encode()
+            req = urllib.request.Request(
+                url, data=req_data,
+                headers={"Content-Type": "application/json",
+                         "Authorization": "Bearer " + self.key})
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    return json.load(r)
+            except urllib.error.HTTPError as e:
+                err_text = ""
+                try:
+                    err_text = e.read().decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+                log.warning("FlowClient POST %s HTTPError %s (attempt %d/%d): %s",
+                            path, e.code, attempt, max_retries, err_text[:300])
+
+                if "AUDIO_FILTERED" in err_text:
+                    log.info("Mendeteksi PUBLIC_ERROR_AUDIO_FILTERED upstream. Auto-sanitasi prompt...")
+                    _sanitize_prompt_for_audio_safety(body)
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+
+                if e.code in (500, 502, 503, 504) and attempt < max_retries:
+                    wait_sec = attempt * 3
+                    log.info("Transient upstream error %d. Retry dalam %ds...", e.code, wait_sec)
+                    time.sleep(wait_sec)
+                    continue
+
+                clean_msg = f"HTTP Error {e.code}: {e.reason}"
+                if err_text:
+                    try:
+                        err_json = json.loads(err_text)
+                        clean_msg = err_json.get("error") or err_json.get("message") or clean_msg
+                    except Exception:
+                        if len(err_text.strip()) < 200:
+                            clean_msg = err_text.strip()
+                raise RuntimeError(clean_msg) from e
+
+            except (urllib.error.URLError, TimeoutError, ConnectionResetError, socket.timeout) as e:
+                log.warning("FlowClient POST %s network error (attempt %d/%d): %s",
+                            path, attempt, max_retries, e)
+                last_error = e
+                if attempt < max_retries:
+                    time.sleep(attempt * 2)
+                    continue
+                raise RuntimeError(f"Koneksi ke Flow server gagal: {e}") from e
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("Gagal memproses permintaan ke Flow API.")
 
     @staticmethod
     def _download(url, dest):
@@ -186,7 +277,7 @@ class FlowClient:
                     self._post,
                     "/v1beta/models/%s:generateContent" % model,
                     data, 300),
-                timeout=330)
+                timeout=600)
             uri = self._video_uri(body)
             if not uri:
                 raise RuntimeError("veo: no video uri")
@@ -317,7 +408,7 @@ class FlowClient:
                 asyncio.to_thread(self._post,
                     "/v1beta/models/%s:generateContent" % _image_model(aspect),
                     {"contents": [{"parts": parts}]}, timeout),
-                timeout=timeout)
+                timeout=timeout + 30)
             data = next(p["inlineData"]["data"]
                         for p in res["candidates"][0]["content"]["parts"]
                         if "inlineData" in p)
