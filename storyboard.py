@@ -637,23 +637,42 @@ STYLE_BOARD_GUIDE = {
 
 def build_frame_prompt(sc: dict, spec_text: str = "",
                        style: str = "sinematik", framing: str = "tangan",
-                       produk: str = "") -> str:
-    """Prompt for generating a single storyboard reference frame (9:16)."""
-    base = sc.get("visual_prompt") or sc.get("judul") or "Product commercial shot"
+                       produk: str = "", character: str = "") -> str:
+    """Prompt for generating a single ultra-clear storyboard reference frame (9:16)."""
+    vis = (sc.get("visual_prompt") or sc.get("judul") or f"High-end commercial showcase of {produk}").strip()
+    act = (sc.get("action") or "").strip()
+    cam = (sc.get("camera_en") or "").strip()
     style_desc = STYLE_DIRECTING.get(style, STYLE_DIRECTING.get("sinematik", ""))
     frame_desc = FRAME_HINT.get(framing, "")
-    cat = get_product_category(produk or "", base)
+    cat = get_product_category(produk or "", f"{vis} {act}")
     cat_directive = CATEGORY_DIRECTIVES.get(cat, CATEGORY_DIRECTIVES["general_product"])
+
     parts = [
-        f"High quality 9:16 vertical commercial photo. {base}.",
-        f"Style & Framing: {style_desc} {frame_desc}".strip(),
+        f"Masterclass vertical 9:16 commercial photography still: {vis}.",
     ]
+    if act:
+        parts.append(f"Hero action beat: {act}.")
+    if cam:
+        parts.append(f"Camera angle & composition: {cam}.")
+    if frame_desc or style_desc:
+        parts.append(f"Style & Framing: {style_desc} {frame_desc}".strip())
     if spec_text:
         parts.append(f"Product fidelity: {spec_text}")
+    if character:
+        parts.append(f"Character appearance: {character}")
+
+    parts.append(f"HERO FOCUS: The product '{produk or 'featured item'}' is the crisp, prominent, razor-sharp focal point.")
     parts.append(cat_directive)
     parts.append(ANATOMY_LOCK)
     parts.append(APPLICATION_EFFECT_LOCK)
-    parts.append("Clean composition, professional studio lighting, centered subject, crystal sharp details, no text, no watermark.")
+    parts.append(
+        "ULTRA-HD COMMERCIAL FIDELITY: Shot on Hasselblad H6D-100c medium format camera with 85mm f/1.4 lens. "
+        "Tack-sharp focal plane, creamy cinematic background bokeh, volumetric commercial studio lighting with subtle rim light. "
+        "Hyper-detailed authentic textures (real glass reflections, brushed metal, fabric weave, natural skin pores). "
+        "Master commercial color grade, high dynamic range. "
+        "STRICT NEGATIVE PROMPT: Zero motion blur, zero grainy noise, no deformed hands, no extra fingers, no floating objects, "
+        "no cartoon illustration, no CGI plastic sheen, no text, no watermark, no logos."
+    )
     return "\n".join(parts)
 
 

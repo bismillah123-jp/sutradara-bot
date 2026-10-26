@@ -1220,6 +1220,7 @@ async def produksi_awal(context, chat_id: int, s: dict):
                     style=s.get("style", "sinematik"),
                     framing=s.get("framing", "tangan"),
                     produk=s.get("produk", ""),
+                    character=board.get("character_lock", ""),
                 )
                 img = None
                 try:
@@ -1236,7 +1237,8 @@ async def produksi_awal(context, chat_id: int, s: dict):
             sheet_path = workdir / "storyboard_sheet.jpg"
             hero_katalog = s.get("katalog_hd") or s.get("katalog")
             compose_sheet(board, s["produk"], "Promosi", s["durasi"],
-                          hero_katalog, frames, str(sheet_path))
+                          hero_katalog, frames, str(sheet_path),
+                          style=s.get("style", "sinematik"), audio=s.get("audio", "vo"))
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("\U0001F680 Gas Bikin Video", callback_data="gas:video")],
                 [InlineKeyboardButton("\u274c Batal", callback_data="gas:batal")],
